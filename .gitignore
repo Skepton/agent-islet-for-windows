@@ -1,0 +1,17 @@
+# build
+bin/
+obj/
+publish/
+artifacts/
+*.user
+.vs/
+
+# captured Claude Code sessions can contain prompts/commands from the user's real work - never commit
+logs/
+
+# editor / OS
+.idea/
+Thumbs.db
+
+# per-user Claude Code permission allowlists (created when you click "always allow")
+.claude/
