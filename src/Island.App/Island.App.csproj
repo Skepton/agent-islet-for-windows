@@ -8,6 +8,10 @@
     <UseWindowsForms>true</UseWindowsForms>
     <RootNamespace>Island.App</RootNamespace>
     <AssemblyName>ClaudeCodeIsland</AssemblyName>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <!-- WinForms' analyzer wants DPI set in code. This is a WPF app (WinForms is only the tray icon), and
+         per-monitor DPI belongs in the manifest, so silence that one rule. -->
+    <NoWarn>$(NoWarn);WFAC010</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
