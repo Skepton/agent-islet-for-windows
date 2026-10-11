@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <!-- WinForms is only used for the tray icon (NotifyIcon). -->
+    <UseWindowsForms>true</UseWindowsForms>
+    <RootNamespace>Island.App</RootNamespace>
+    <AssemblyName>ClaudeCodeIsland</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Keep WPF and WinForms type names from clashing (Application, MessageBox, ...). -->
+    <Using Remove="System.Windows.Forms" />
+    <Using Remove="System.Drawing" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Island.Core\Island.Core.csproj" />
+  </ItemGroup>
+
+</Project>
