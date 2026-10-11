@@ -1,0 +1,14 @@
+{
+  "five_hour": { "utilization": 28.0, "resets_at": "2026-10-11T16:10:00.076076+00:00", "limit_dollars": null, "used_dollars": null, "remaining_dollars": null, "locked_reason": null },
+  "seven_day": { "utilization": 4.0, "resets_at": "2026-10-14T13:00:00.076101+00:00", "limit_dollars": null, "used_dollars": null, "remaining_dollars": null, "locked_reason": null },
+  "seven_day_oauth_apps": null,
+  "seven_day_opus": null,
+  "seven_day_sonnet": null,
+  "extra_usage": { "is_enabled": false, "monthly_limit": null, "used_credits": null, "utilization": null, "currency": null, "decimal_places": null, "disabled_reason": null, "user_disabled": false, "spend_limit_reached": false, "credits_ever_enabled": false, "daily": null, "weekly": null },
+  "limits": [
+    { "kind": "session", "group": "session", "percent": 28, "severity": "normal", "resets_at": "2026-10-11T16:10:00.076076+00:00", "scope": null, "is_active": true },
+    { "kind": "weekly_all", "group": "weekly", "percent": 4, "severity": "normal", "resets_at": "2026-10-14T13:00:00.076101+00:00", "scope": null, "is_active": false }
+  ],
+  "spend": { "used": { "amount_minor": 0, "currency": "USD", "exponent": 2 }, "limit": null, "percent": 0, "severity": "normal", "enabled": false },
+  "_note": "Captured 2026-10-11 from a Pro account via GET https://api.anthropic.com/api/oauth/usage. The live response also contains ~15 obfuscated-name keys that are null (ignore unknown keys). Trimmed for the fixture."
+}
