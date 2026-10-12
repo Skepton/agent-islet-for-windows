@@ -22,7 +22,8 @@ if (Test-Pipe) { throw "an island instance is already running; quit it from the 
 
 $proc = $null
 try {
-    try { $proc = Start-Process $app -ArgumentList '--tray' -PassThru }
+    # --allow-all-projects: the fixtures' folder would otherwise wait for a Show / Ignore answer.
+    try { $proc = Start-Process $app -ArgumentList '--tray', '--allow-all-projects' -PassThru }
     catch { throw "could not start the app (Smart App Control?): $($_.Exception.Message)" }
 
     $deadline = (Get-Date).AddSeconds(10)

@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Everything specific to Claude Code: hook payloads and decisions, the forwarder's side of the hook,
+       and the OAuth usage endpoint. Island.Core stays agent-neutral; another agent gets its own project like this. -->
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <RootNamespace>Island.ClaudeCode</RootNamespace>
+    <IsTrimmable>true</IsTrimmable>
+    <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Island.Core\Island.Core.csproj" />
+  </ItemGroup>
+
+</Project>

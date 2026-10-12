@@ -1,6 +1,7 @@
 using System.Text.Json;
+using Island.Core;
 
-namespace Island.Core;
+namespace Island.ClaudeCode;
 
 /// <summary>
 /// The subset of a Claude Code hook's stdin JSON that the island uses. Parsed tolerantly:
@@ -23,9 +24,6 @@ public sealed record HookPayload
 
     /// <summary>The user's prompt (UserPromptSubmit). Shown on cards, kept in memory only, never persisted.</summary>
     public string? Prompt { get; init; }
-
-    /// <summary>Which app runs the session ("VS Code", "Terminal"); supplied by the forwarder, not part of the hook payload.</summary>
-    public string? ClientApp { get; init; }
 
     public static HookPayload Parse(string json)
     {

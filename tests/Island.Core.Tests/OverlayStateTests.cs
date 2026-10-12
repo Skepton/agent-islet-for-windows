@@ -7,10 +7,10 @@ public class OverlayStateTests
     private static readonly DateTimeOffset T0 = new(2026, 10, 11, 12, 0, 0, TimeSpan.Zero);
 
     private static PendingPermission Pending(string id, string tool = "Bash") =>
-        new(id, tool, "npm test", "default", Array.Empty<SuggestionChoice>(), "Run the test suite");
+        new(id, tool, "npm test", "default", Array.Empty<RememberOption>(), "Run the test suite");
 
     private static PermissionShown Permission(string id, string session = "s1") =>
-        new(session, "my-app", Pending(id), "fix the bug", "VS Code");
+        new(session, "my-app", Pending(id), "fix the bug", "VS Code", "Test Agent");
 
     private static NoticeShown Needs(string session = "s1", string text = "Claude is waiting") =>
         new(session, "my-app", SessionPhase.NeedsInput, text);
@@ -48,6 +48,7 @@ public class OverlayStateTests
         Assert.Equal("my-app", card.SessionName);
         Assert.Equal("fix the bug", card.LastPrompt);
         Assert.Equal("VS Code", card.ClientApp);
+        Assert.Equal("Test Agent", card.Agent);
         Assert.Equal("Run the test suite", card.Permission.Description);
         Assert.Null(card.ExpiresAt);
     }

@@ -1,6 +1,7 @@
 using System.Text.Json;
+using Island.Core;
 
-namespace Island.Core;
+namespace Island.ClaudeCode;
 
 /// <summary>One-line description of what a tool call wants to do, for permission cards.</summary>
 public static class ToolSummary
@@ -32,4 +33,18 @@ public static class ToolSummary
         var text = JsonUtil.Str(doc.RootElement, "description");
         return string.IsNullOrWhiteSpace(text) ? null : TextUtil.Truncate(text, max);
     }
+
+    /// <summary>"Claude wants to run Bash." for shells, "Claude wants to use Edit." for everything else.</summary>
+    public static string Headline(string toolName) =>
+        IsShell(toolName) ? $"Claude wants to run {toolName}." : $"Claude wants to use {toolName}.";
+
+    /// <summary>The prompt shown before the command: "$" for Bash, "PS>" for PowerShell, nothing otherwise.</summary>
+    public static string CommandPrefix(string toolName) => toolName switch
+    {
+        "Bash" => "$",
+        "PowerShell" => "PS>",
+        _ => "",
+    };
+
+    private static bool IsShell(string toolName) => toolName is "Bash" or "PowerShell";
 }

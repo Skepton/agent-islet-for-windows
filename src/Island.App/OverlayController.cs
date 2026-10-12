@@ -9,7 +9,7 @@ namespace Island.App;
 /// </summary>
 public sealed class OverlayController : IDisposable
 {
-    /// <summary>Request ids with this prefix belong to <c>--demo</c> and are answered locally.</summary>
+    /// <summary>Request ids (and project keys) with this prefix belong to <c>--demo</c> and are answered locally.</summary>
     public const string DemoPrefix = "demo-";
 
     private static readonly TimeSpan TickInterval = TimeSpan.FromMilliseconds(500);
@@ -116,6 +116,7 @@ public sealed class OverlayController : IDisposable
     {
         PermissionCard permission => new PermissionCardViewModel(permission, now, Answer),
         NoticeCard notice => new NoticeCardViewModel(notice, now, Dismiss),
+        ProjectCard project => new ProjectCardViewModel(project, Decide),
         UsageCard usage => new UsageCardViewModel(usage, Dismiss),
         _ => throw new ArgumentOutOfRangeException(nameof(card)),
     };
@@ -139,7 +140,22 @@ public sealed class OverlayController : IDisposable
         }
 
         // The hub reports the cleared card back through OnEffects.
-        _hub.Answer(card.Id, answer.DecisionJson, answer.Outcome);
+        _hub.Answer(card.Id, answer.Verdict, answer.Outcome);
+    }
+
+    private void Decide(ProjectCard card, ProjectDecision decision)
+    {
+        _log($"project {decision.ToString().ToLowerInvariant(),-10} {card.Project.Path}");
+
+        if (card.Project.Key.StartsWith(DemoPrefix, StringComparison.Ordinal))
+        {
+            _state.Apply(new StoreEffect[] { new ProjectDecided(card.Project, decision) }, DateTimeOffset.UtcNow);
+            Refresh();
+            return;
+        }
+
+        // The hub reports the decision back through OnEffects, which removes the card.
+        _hub.DecideProject(card.Project, decision);
     }
 
     private void OnTick()

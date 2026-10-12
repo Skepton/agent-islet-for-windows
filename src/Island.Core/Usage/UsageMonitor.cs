@@ -10,7 +10,7 @@ public sealed record UsageUpdate(
 /// <summary>
 /// Polls a usage source on the <see cref="PollSchedule"/>, runs readings through the milestone engine, persists
 /// progress, and reports every poll to a callback. Call <see cref="NoteActivity"/> on each hook event so it polls
-/// more often while Claude Code is in use. The caller decides whether to start it (consent lives in the UI).
+/// more often while an agent is in use. The caller decides whether to start it (consent lives in the UI).
 /// </summary>
 public sealed class UsageMonitor
 {
@@ -48,7 +48,7 @@ public sealed class UsageMonitor
         _jitter = jitter ?? (() => Random.Shared.NextDouble() * 2 - 1);
     }
 
-    /// <summary>Tell the monitor Claude Code did something. Ends an idle wait early, but never polls more often than the active interval.</summary>
+    /// <summary>Tell the monitor an agent did something. Ends an idle wait early, but never polls more often than the active interval.</summary>
     public void NoteActivity()
     {
         TaskCompletionSource? toWake = null;
@@ -92,7 +92,7 @@ public sealed class UsageMonitor
             }
             else
             {
-                // "Not logged in with claude.ai" is a steady state, not an error worth backing off for.
+                // "Not signed in with a subscription" is a steady state, not an error worth backing off for.
                 if (result.Status != UsageFetchStatus.Unavailable) _failures++;
                 _retryAfter = result.RetryAfter;
             }

@@ -1,7 +1,7 @@
 namespace Island.Core;
 
 /// <summary>Declaration order is display priority: a permission request always outranks everything else.</summary>
-public enum CardKind { Permission, NeedsInput, UsageMilestone, Finished }
+public enum CardKind { Permission, NeedsInput, ProjectApproval, UsageMilestone, Finished }
 
 public abstract record OverlayCard
 {
@@ -21,6 +21,7 @@ public sealed record PermissionCard : OverlayCard
     public required PendingPermission Permission { get; init; }
     public string? LastPrompt { get; init; }
     public string? ClientApp { get; init; }
+    public string? Agent { get; init; }
     public override CardKind Kind => CardKind.Permission;
 }
 
@@ -32,7 +33,16 @@ public sealed record NoticeCard : OverlayCard
     public required string Text { get; init; }
     public string? LastPrompt { get; init; }
     public string? ClientApp { get; init; }
+    public string? Agent { get; init; }
     public override CardKind Kind => Phase == SessionPhase.Finished ? CardKind.Finished : CardKind.NeedsInput;
+}
+
+/// <summary>"Show this project on the island?" Stays until the user answers.</summary>
+public sealed record ProjectCard : OverlayCard
+{
+    public required ProjectRef Project { get; init; }
+    public string? Agent { get; init; }
+    public override CardKind Kind => CardKind.ProjectApproval;
 }
 
 public sealed record UsageCard : OverlayCard
@@ -106,6 +116,7 @@ public sealed class OverlayState
                             Permission = shown.Permission,
                             LastPrompt = shown.LastPrompt,
                             ClientApp = shown.ClientApp,
+                            Agent = shown.Agent,
                         });
                         _selectedId = null; // an urgent card always takes the front
                         break;
@@ -128,11 +139,27 @@ public sealed class OverlayState
                             Text = notice.Text,
                             LastPrompt = notice.LastPrompt,
                             ClientApp = notice.ClientApp,
+                            Agent = notice.Agent,
                         });
                         break;
 
                     case NoticeCleared cleared:
                         Remove(c => c is NoticeCard n && n.SessionId == cleared.SessionId);
+                        break;
+
+                    case ProjectApprovalRequested asked:
+                        Remove(c => c is ProjectCard p && p.Project.Key == asked.Project.Key);
+                        _cards.Add(new ProjectCard
+                        {
+                            Id = "project:" + asked.Project.Key,
+                            CreatedAt = now,
+                            Project = asked.Project,
+                            Agent = asked.Agent,
+                        });
+                        break;
+
+                    case ProjectDecided decided:
+                        Remove(c => c is ProjectCard p && p.Project.Key == decided.Project.Key);
                         break;
 
                     case SessionRemoved removed:

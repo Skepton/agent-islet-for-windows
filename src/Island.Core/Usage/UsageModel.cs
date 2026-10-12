@@ -14,10 +14,10 @@ public enum UsageFetchStatus
 {
     Ok,
 
-    /// No usable credentials (not logged in with claude.ai, or an API-key user). The feature stays quietly off.
+    /// No usable credentials (not signed in with a subscription, or an API-key user). The feature stays quietly off.
     Unavailable,
 
-    /// The stored access token has expired. Claude Code refreshes it when it next runs; we never refresh it.
+    /// The stored access token has expired. The agent refreshes it when it next runs; the island never does.
     TokenExpired,
 
     /// The server rejected the token (401/403).
@@ -34,6 +34,7 @@ public enum UsageFetchStatus
 
 public sealed record UsageFetchResult(UsageFetchStatus Status, UsageSnapshot? Snapshot = null, TimeSpan? RetryAfter = null);
 
+/// <summary>Where usage readings come from. Implemented by an agent integration (Claude Code: the OAuth usage endpoint).</summary>
 public interface IUsageSource
 {
     Task<UsageFetchResult> FetchAsync(CancellationToken ct);

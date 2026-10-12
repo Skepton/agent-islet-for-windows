@@ -22,6 +22,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Island.Core\Island.Core.csproj" />
+    <ProjectReference Include="..\Island.ClaudeCode\Island.ClaudeCode.csproj" />
   </ItemGroup>
 
 </Project>

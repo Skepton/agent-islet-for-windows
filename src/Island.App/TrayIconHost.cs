@@ -1,15 +1,16 @@
 namespace Island.App;
 
-/// <summary>Notification-area icon with a Show / Quit menu.</summary>
+/// <summary>Notification-area icon with a Sessions / Settings / Quit menu.</summary>
 internal sealed class TrayIconHost : IDisposable
 {
     private readonly System.Windows.Forms.NotifyIcon _icon;
     private readonly System.Windows.Forms.ContextMenuStrip _menu;
 
-    public TrayIconHost(Action onShow, Action onQuit)
+    public TrayIconHost(Action onShow, Action onSettings, Action onQuit)
     {
         _menu = new System.Windows.Forms.ContextMenuStrip();
         _menu.Items.Add("Show sessions", null, (_, _) => onShow());
+        _menu.Items.Add("Settings...", null, (_, _) => onSettings());
         _menu.Items.Add(new System.Windows.Forms.ToolStripSeparator());
         _menu.Items.Add("Quit", null, (_, _) => onQuit());
 

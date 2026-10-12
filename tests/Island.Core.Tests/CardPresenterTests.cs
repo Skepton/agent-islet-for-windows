@@ -6,71 +6,63 @@ public class CardPresenterTests
 {
     private static readonly DateTimeOffset T0 = new(2026, 10, 11, 12, 0, 0, TimeSpan.Zero);
 
-    private const string AddRules =
-        """{"type":"addRules","rules":[{"toolName":"Bash","ruleContent":"node -e ' *"}],"behavior":"allow","destination":"localSettings"}""";
-
-    private const string AddDirectories =
-        """{"type":"addDirectories","directories":["C:\\proj"],"destination":"session"}""";
+    private static readonly RememberOption Rule = new("Always Allow (Shell)", "Allow + remember Shell(npm *)", "rule-payload");
+    private static readonly RememberOption Folder = new("Allow + add folder", "Allow + add folder C:\\proj", "folder-payload");
 
     private static PermissionCard Permission(
-        string tool = "Bash",
+        string tool = "Shell",
         string summary = "npm test",
         string? description = "Run the tests",
         string? prompt = "fix the bug",
         string? clientApp = "VS Code",
-        params string[] suggestions) => new()
+        string headline = "Agent wants to run Shell.",
+        string prefix = "$",
+        string? agent = "Test Agent",
+        params RememberOption[] suggestions) => new()
     {
         Id = "r1",
         CreatedAt = T0,
         SessionId = "s1",
         SessionName = "my-app",
-        Permission = new PendingPermission("r1", tool, summary, "default", SuggestionChoice.FromRaw(suggestions), description),
+        Permission = new PendingPermission("r1", tool, summary, "default", suggestions, description, headline, prefix),
         LastPrompt = prompt,
         ClientApp = clientApp,
+        Agent = agent,
     };
 
     [Fact]
-    public void Bash_permission_reads_like_the_reference_card()
+    public void Permission_card_shows_what_the_agent_integration_supplied()
     {
         var text = CardPresenter.Present(Permission(), T0.AddSeconds(20));
 
         Assert.Equal("my-app · fix the bug", text.Title);
         Assert.Equal("You: fix the bug", text.YouLine);
-        Assert.Equal("Claude wants to run Bash.", text.AttentionLine);
-        Assert.Equal("Bash", text.ToolLabel);
+        Assert.Equal("Agent wants to run Shell.", text.AttentionLine);
+        Assert.Equal("Shell", text.ToolLabel);
         Assert.Equal("$", text.CommandPrefix);
         Assert.Equal("npm test", text.Command);
         Assert.Equal("Run the tests", text.Description);
-        Assert.Equal(new[] { "Claude Code", "VS Code", "<1m" }, text.Chips);
+        Assert.Equal(new[] { "Test Agent", "VS Code", "<1m" }, text.Chips);
     }
 
     [Fact]
-    public void PowerShell_uses_its_own_prefix_and_wording()
+    public void Missing_headline_falls_back_to_a_generic_line()
     {
-        var text = CardPresenter.Present(Permission("PowerShell"), T0);
+        var text = CardPresenter.Present(Permission("Edit", headline: "", prefix: "", description: null), T0);
 
-        Assert.Equal("PS>", text.CommandPrefix);
-        Assert.Equal("Claude wants to run PowerShell.", text.AttentionLine);
-    }
-
-    [Fact]
-    public void Non_shell_tools_have_no_prefix_and_say_use()
-    {
-        var text = CardPresenter.Present(Permission("Edit", "src/a.cs", description: null), T0);
-
+        Assert.Equal("Permission needed to use Edit.", text.AttentionLine);
         Assert.Equal("", text.CommandPrefix);
-        Assert.Equal("Claude wants to use Edit.", text.AttentionLine);
         Assert.Null(text.Description);
     }
 
     [Fact]
-    public void Missing_prompt_and_client_app_are_left_out()
+    public void Missing_prompt_client_app_and_agent_are_left_out()
     {
-        var text = CardPresenter.Present(Permission(prompt: null, clientApp: null), T0.AddMinutes(5));
+        var text = CardPresenter.Present(Permission(prompt: null, clientApp: null, agent: null), T0.AddMinutes(5));
 
         Assert.Equal("my-app", text.Title);
         Assert.Null(text.YouLine);
-        Assert.Equal(new[] { "Claude Code", "5m" }, text.Chips);
+        Assert.Equal(new[] { "5m" }, text.Chips);
     }
 
     [Fact]
@@ -98,12 +90,12 @@ public class CardPresenterTests
     [Fact]
     public void Buttons_are_No_Yes_then_one_per_suggestion()
     {
-        var text = CardPresenter.Present(Permission(suggestions: new[] { AddRules, AddDirectories }), T0);
+        var text = CardPresenter.Present(Permission(suggestions: new[] { Rule, Folder }), T0);
 
         Assert.Collection(text.Actions,
             a => Assert.Equal((PermissionActionKind.Deny, "No", -1), (a.Kind, a.Label, a.SuggestionIndex)),
             a => Assert.Equal((PermissionActionKind.Allow, "Yes", -1), (a.Kind, a.Label, a.SuggestionIndex)),
-            a => Assert.Equal((PermissionActionKind.Remember, "Always Allow (Bash)", 0), (a.Kind, a.Label, a.SuggestionIndex)),
+            a => Assert.Equal((PermissionActionKind.Remember, "Always Allow (Shell)", 0), (a.Kind, a.Label, a.SuggestionIndex)),
             a => Assert.Equal((PermissionActionKind.Remember, "Allow + add folder", 1), (a.Kind, a.Label, a.SuggestionIndex)));
     }
 
@@ -114,25 +106,7 @@ public class CardPresenterTests
     }
 
     [Fact]
-    public void Always_allow_names_the_rule_tool_and_falls_back_to_the_permission_tool()
-    {
-        var mcp = SuggestionChoice.FromRaw(new[] { """{"type":"addRules","rules":[{"toolName":"mcp__x__y"}]}""" })[0];
-        var noRules = SuggestionChoice.FromRaw(new[] { """{"type":"addRules"}""" })[0];
-
-        Assert.Equal("Always Allow (mcp__x__y)", CardPresenter.SuggestionLabel(mcp, "Bash"));
-        Assert.Equal("Always Allow (WebFetch)", CardPresenter.SuggestionLabel(noRules, "WebFetch"));
-    }
-
-    [Fact]
-    public void Unknown_suggestion_types_keep_the_store_label()
-    {
-        var choice = SuggestionChoice.FromRaw(new[] { """{"type":"setMode","mode":"acceptEdits"}""" })[0];
-
-        Assert.Equal(choice.Label, CardPresenter.SuggestionLabel(choice, "Bash"));
-    }
-
-    [Fact]
-    public void Deny_and_allow_answers_build_the_decision_objects()
+    public void Deny_and_allow_answers_are_plain_verdicts()
     {
         var card = Permission();
         var actions = CardPresenter.Present(card, T0).Actions;
@@ -140,22 +114,22 @@ public class CardPresenterTests
         var deny = CardPresenter.Answer(card, actions[0]);
         var allow = CardPresenter.Answer(card, actions[1]);
 
-        Assert.Contains("\"behavior\":\"deny\"", deny.DecisionJson);
+        Assert.IsType<DenyVerdict>(deny.Verdict);
         Assert.Equal(PermissionOutcome.Answered, deny.Outcome);
-        Assert.Equal(PermissionDecision.Allow(), allow.DecisionJson);
+        Assert.IsType<AllowVerdict>(allow.Verdict);
         Assert.Equal(PermissionOutcome.Answered, allow.Outcome);
     }
 
     [Fact]
-    public void Remember_answer_echoes_the_raw_suggestion_back()
+    public void Remember_answer_carries_the_chosen_option()
     {
-        var card = Permission(suggestions: new[] { AddRules, AddDirectories });
+        var card = Permission(suggestions: new[] { Rule, Folder });
         var actions = CardPresenter.Present(card, T0).Actions;
 
         var answer = CardPresenter.Answer(card, actions[3]);
 
-        Assert.Equal(PermissionDecision.Allow(new[] { AddDirectories }), answer.DecisionJson);
-        Assert.Contains("updatedPermissions", answer.DecisionJson);
+        Assert.Equal(Folder, Assert.IsType<RememberVerdict>(answer.Verdict).Option);
+        Assert.Contains(Folder.Detail, answer.Log);
     }
 
     [Fact]
@@ -163,7 +137,7 @@ public class CardPresenterTests
     {
         var answer = CardPresenter.AnswerInTerminal(Permission());
 
-        Assert.Null(answer.DecisionJson);
+        Assert.Null(answer.Verdict);
         Assert.Equal(PermissionOutcome.DeferredToTerminal, answer.Outcome);
     }
 
@@ -188,7 +162,7 @@ public class CardPresenterTests
         var card = new NoticeCard
         {
             Id = "notice:s1", CreatedAt = T0, SessionId = "s1", SessionName = "my-app",
-            Phase = SessionPhase.Finished, Text = "All done", LastPrompt = "ship it", ClientApp = "Terminal",
+            Phase = SessionPhase.Finished, Text = "All done", LastPrompt = "ship it", ClientApp = "Terminal", Agent = "Test Agent",
         };
 
         var text = CardPresenter.Present(card, T0.AddHours(2));
@@ -196,7 +170,7 @@ public class CardPresenterTests
         Assert.True(text.IsDone);
         Assert.Equal("All done", text.Body);
         Assert.Equal("my-app · ship it", text.Title);
-        Assert.Equal(new[] { "Claude Code", "Terminal", "2h" }, text.Chips);
+        Assert.Equal(new[] { "Test Agent", "Terminal", "2h" }, text.Chips);
     }
 
     [Fact]

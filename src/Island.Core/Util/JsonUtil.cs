@@ -4,7 +4,7 @@ namespace Island.Core;
 
 /// <summary>
 /// Tolerant JSON accessors. A missing, null or wrong-typed field yields null / false / the fallback,
-/// never an exception, so payloads from other Claude Code versions keep working.
+/// never an exception, so payloads from other agent versions keep working.
 /// </summary>
 public static class JsonUtil
 {

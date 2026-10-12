@@ -102,24 +102,24 @@ public sealed class DebugViewModel : INotifyPropertyChanged
             Tool = pending.ToolName,
             Summary = pending.Summary,
             Mode = pending.PermissionMode,
-            Allow = new RelayCommand(() => Answer(session, pending, "allow", PermissionDecision.Allow(), PermissionOutcome.Answered)),
-            Deny = new RelayCommand(() => Answer(session, pending, "deny", PermissionDecision.Deny("Denied from Claude Code Island"), PermissionOutcome.Answered)),
+            Allow = new RelayCommand(() => Answer(session, pending, "allow", PermissionVerdict.Allow, PermissionOutcome.Answered)),
+            Deny = new RelayCommand(() => Answer(session, pending, "deny", PermissionVerdict.Deny(), PermissionOutcome.Answered)),
             Terminal = new RelayCommand(() => Answer(session, pending, "no decision, answer in terminal", null, PermissionOutcome.DeferredToTerminal)),
             Remember = pending.Suggestions
-                .Select(choice => new RememberAction(
-                    choice.Label,
+                .Select(option => new RememberAction(
+                    option.Detail,
                     new RelayCommand(() => Answer(
-                        session, pending, $"allow, sending update to Claude Code: {choice.RawJson}",
-                        PermissionDecision.Allow(new[] { choice.RawJson }), PermissionOutcome.Answered))))
+                        session, pending, $"allow and remember, sending: {option.Payload}",
+                        PermissionVerdict.Remember(option), PermissionOutcome.Answered))))
                 .ToList(),
         };
     }
 
-    /// <summary>Sends the decision to the waiting forwarder and records what was sent, so a click is never silent.</summary>
-    private void Answer(SessionInfo session, PendingPermission pending, string what, string? decisionJson, PermissionOutcome outcome)
+    /// <summary>Sends the verdict to the waiting forwarder and records what was sent, so a click is never silent.</summary>
+    private void Answer(SessionInfo session, PendingPermission pending, string what, PermissionVerdict? verdict, PermissionOutcome outcome)
     {
         LogLine($"answered           {session.DisplayName}  {pending.ToolName}: {what}");
-        _hub.Answer(pending.RequestId, decisionJson, outcome);
+        _hub.Answer(pending.RequestId, verdict, outcome);
     }
 
     private static string WindowLabel(UsageWindowId id) => id == UsageWindowId.FiveHour ? "5h" : "7d";
@@ -133,8 +133,8 @@ public sealed class DebugViewModel : INotifyPropertyChanged
         return update.Result.Status switch
         {
             UsageFetchStatus.Ok => latest ?? "Usage: no active limit window reported",
-            UsageFetchStatus.Unavailable => "Usage: unavailable (not signed in to Claude Code with a claude.ai account)",
-            UsageFetchStatus.TokenExpired => (latest ?? "Usage: waiting") + "  -  Claude Code's login has expired; will retry once it refreshes",
+            UsageFetchStatus.Unavailable => "Usage: unavailable (not signed in with a subscription account)",
+            UsageFetchStatus.TokenExpired => (latest ?? "Usage: waiting") + "  -  the login has expired; will retry once the agent refreshes it",
             var other => (latest ?? "Usage: no data yet") + $"  -  last poll: {other}",
         };
     }
@@ -146,6 +146,8 @@ public sealed class DebugViewModel : INotifyPropertyChanged
         NoticeShown n => $"{n.Phase,-18} {n.DisplayName}  {n.Text}",
         NoticeCleared c => $"notice cleared     {Short(c.SessionId)}",
         SessionRemoved r => $"session removed    {Short(r.SessionId)}",
+        ProjectApprovalRequested p => $"new project        {p.Project.Path}  (waiting for Show / Ignore)",
+        ProjectDecided d => $"project decided    {d.Project.Path}  ({d.Decision})",
         _ => effect.GetType().Name,
     };
 

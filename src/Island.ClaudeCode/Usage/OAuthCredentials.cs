@@ -1,6 +1,7 @@
 using System.Text.Json;
+using Island.Core;
 
-namespace Island.Core;
+namespace Island.ClaudeCode;
 
 /// <summary>Holds a bearer token. Printing it (ToString, logging, string interpolation) yields a placeholder.</summary>
 public sealed class SecretToken
@@ -40,14 +41,7 @@ public sealed class OAuthCredentialsReader
     }
 
     /// <summary>%CLAUDE_CONFIG_DIR%\.credentials.json when set, otherwise %USERPROFILE%\.claude\.credentials.json.</summary>
-    public static string DefaultPath()
-    {
-        var configured = Environment.GetEnvironmentVariable("CLAUDE_CONFIG_DIR");
-        var directory = string.IsNullOrWhiteSpace(configured)
-            ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".claude")
-            : configured;
-        return Path.Combine(directory, ".credentials.json");
-    }
+    public static string DefaultPath() => Path.Combine(ClaudePaths.ConfigDir(), ".credentials.json");
 
     public CredentialsResult Read()
     {

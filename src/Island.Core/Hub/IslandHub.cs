@@ -1,42 +1,62 @@
 namespace Island.Core;
 
 /// <summary>
-/// Glue between incoming hook frames, the session store and the presentation layer.
-/// Holds PermissionRequests until the UI answers, the forwarder disconnects, or the request is superseded.
+/// Glue between incoming hook frames, the agent integrations, the session store and the presentation layer.
+/// Holds permission requests until the UI answers, the forwarder disconnects, or the request is superseded.
+/// With a <see cref="ProjectPolicy"/>, only projects the user chose to show get through; a new project is asked about
+/// once and its events are dropped until then (the agent behaves as if the island were not there).
 /// </summary>
 public sealed class IslandHub
 {
     private readonly SessionStore _store;
     private readonly PermissionBroker _broker;
+    private readonly Dictionary<string, IAgentIntegration> _agents;
+    private readonly ProjectPolicy? _projects;
     private readonly Action<IReadOnlyList<StoreEffect>> _present;
     private readonly Func<DateTimeOffset> _clock;
+    private readonly HashSet<string> _asked = new(StringComparer.Ordinal);
 
+    /// <param name="projects">Null lets every project through (tests, <c>--allow-all-projects</c>).</param>
     public IslandHub(
         SessionStore store,
         PermissionBroker broker,
+        IEnumerable<IAgentIntegration> agents,
         Action<IReadOnlyList<StoreEffect>> present,
-        Func<DateTimeOffset>? clock = null)
+        Func<DateTimeOffset>? clock = null,
+        ProjectPolicy? projects = null)
     {
         _store = store;
         _broker = broker;
+        _agents = agents.ToDictionary(a => a.Id, StringComparer.Ordinal);
         _present = present;
         _clock = clock ?? (() => DateTimeOffset.UtcNow);
+        _projects = projects;
     }
 
     public IReadOnlyList<SessionInfo> Sessions => _store.Snapshot();
 
-    /// <returns>The decision JSON for a held PermissionRequest; null for everything else.</returns>
+    /// <summary>The user's project choices; empty when every project is let through.</summary>
+    public IReadOnlyList<ProjectEntry> Projects => _projects?.List() ?? Array.Empty<ProjectEntry>();
+
+    /// <returns>What the forwarder should print for a held permission request; null for everything else.</returns>
     public async Task<string?> HandleAsync(HookFrame frame, CancellationToken ct)
     {
-        var hook = HookPayload.Parse(frame.PayloadJson) with { ClientApp = frame.ClientApp };
-        var holdForDecision = frame.Wait && hook.EventName == "PermissionRequest";
+        // A frame from an agent this build does not know: stay silent, the agent carries on as normal.
+        if (!_agents.TryGetValue(frame.Agent, out var agent)) return null;
+        if (agent.Translate(frame.PayloadJson, frame.Id) is not { } evt) return null;
+
+        var project = ProjectRef.From(frame.Project ?? evt.Cwd);
+        if (!Admit(project, agent)) return null;
+
+        evt = evt with { ClientApp = frame.ClientApp ?? evt.ClientApp, Agent = agent.DisplayName, Project = project?.Key };
+        var holdForDecision = frame.Wait && evt is PermissionRequested;
 
         // Register the waiter before anything is presented, so an answer given instantly cannot be lost.
-        var decision = holdForDecision ? _broker.HoldAsync(frame.Id, ct) : null;
-        Dispatch(_store.Apply(hook, frame.Id, _clock()));
-        if (decision is null) return null;
+        var output = holdForDecision ? _broker.HoldAsync(frame.Id, agent, ct) : null;
+        Dispatch(_store.Apply(evt, _clock()));
+        if (output is null) return null;
 
-        var answer = await decision.ConfigureAwait(false);
+        var answer = await output.ConfigureAwait(false);
         if (!ct.IsCancellationRequested) return answer;
 
         // The forwarder went away (terminal answered, or its deadline passed): drop the card.
@@ -45,15 +65,55 @@ public sealed class IslandHub
     }
 
     /// <summary>Called by the UI when the user acts on a permission card.</summary>
-    /// <param name="decisionJson">Decision object (see <see cref="PermissionDecision"/>), or null for "answer in terminal".</param>
-    public void Answer(string requestId, string? decisionJson, PermissionOutcome outcome)
+    /// <param name="verdict">The answer, or null for "answer in terminal" (the hook prints nothing).</param>
+    public void Answer(string requestId, PermissionVerdict? verdict, PermissionOutcome outcome)
     {
-        _broker.Resolve(requestId, decisionJson);
+        _broker.Resolve(requestId, verdict);
         Dispatch(_store.ResolvePermission(requestId, _clock(), outcome));
+    }
+
+    /// <summary>
+    /// Records the user's choice for a project. Ignoring or forgetting one drops its sessions and cards at once;
+    /// a forgotten project is asked about again on its next event.
+    /// </summary>
+    public void DecideProject(ProjectRef project, ProjectDecision decision)
+    {
+        if (_projects is null) return;
+        var now = _clock();
+        _projects.Set(project, decision, now);
+        lock (_asked)
+        {
+            if (decision == ProjectDecision.Unknown) _asked.Remove(project.Key);
+            else _asked.Add(project.Key);
+        }
+
+        var effects = new List<StoreEffect> { new ProjectDecided(project, decision) };
+        if (decision != ProjectDecision.Allowed) effects.AddRange(_store.RemoveProject(project.Key, now));
+        Dispatch(effects);
     }
 
     /// <summary>Drops sessions that have been silent for hours. Call occasionally.</summary>
     public void Prune() => Dispatch(_store.Prune(_clock()));
+
+    /// <summary>True when events from <paramref name="project"/> may reach the island. Asks about a new project once.</summary>
+    private bool Admit(ProjectRef? project, IAgentIntegration agent)
+    {
+        // No folder to ask about (rare): nothing to decide, let it through.
+        if (_projects is null || project is null) return true;
+
+        switch (_projects.Check(project))
+        {
+            case ProjectDecision.Allowed:
+                return true;
+            case ProjectDecision.Ignored:
+                return false;
+        }
+
+        bool first;
+        lock (_asked) first = _asked.Add(project.Key);
+        if (first) Dispatch(new StoreEffect[] { new ProjectApprovalRequested(project, agent.DisplayName) });
+        return false;
+    }
 
     private void Dispatch(IReadOnlyList<StoreEffect> effects)
     {

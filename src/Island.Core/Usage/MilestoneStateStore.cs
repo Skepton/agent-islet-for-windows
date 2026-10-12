@@ -21,6 +21,9 @@ public static class IslandPaths
     }
 
     public static string StateFile => Path.Combine(DataDir, "state.json");
+
+    /// <summary>Which project folders the user chose to show or ignore.</summary>
+    public static string ProjectsFile => Path.Combine(DataDir, "projects.json");
 }
 
 /// <summary>
@@ -86,10 +89,6 @@ public sealed class MilestoneStateStore
             w.WriteEndObject();
         }
 
-        Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
-        var temp = _path + ".tmp";
-        File.WriteAllBytes(temp, buffer.ToArray());
-        if (File.Exists(_path)) File.Replace(temp, _path, destinationBackupFileName: null);
-        else File.Move(temp, _path);
+        AtomicFile.WriteAllBytes(_path, buffer.ToArray());
     }
 }

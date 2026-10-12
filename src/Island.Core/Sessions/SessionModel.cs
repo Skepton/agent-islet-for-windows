@@ -10,7 +10,7 @@ public enum PermissionOutcome
     /// The user chose "Answer in terminal"; the hook returns no decision.
     DeferredToTerminal,
 
-    /// Claude Code moved on (PostToolUse / PermissionDenied / UserPromptSubmit / Stop), so it was answered outside the island.
+    /// The agent moved on (ran or skipped the tool, got a new prompt, finished its turn), so it was answered outside the island.
     ResolvedElsewhere,
 
     /// The hook connection closed (answered in the terminal, or the hook hit its deadline).
@@ -20,16 +20,27 @@ public enum PermissionOutcome
     Superseded,
 }
 
+/// <summary>A permission request as the card shows it. The agent integration fills in every display string.</summary>
+/// <param name="ToolName">"Bash", "Edit", ...</param>
+/// <param name="Summary">One line: the command, file or URL.</param>
+/// <param name="Suggestions">Ways to "allow and remember" the agent offered; may be empty.</param>
+/// <param name="Description">The agent's plain-language description of the call, when it gave one.</param>
+/// <param name="Headline">"Claude wants to run Bash."; the card falls back to a generic line when empty.</param>
+/// <param name="CommandPrefix">"$", "PS>", or empty for tools that are not a shell.</param>
 public sealed record PendingPermission(
     string RequestId,
     string ToolName,
     string Summary,
     string PermissionMode,
-    IReadOnlyList<SuggestionChoice> Suggestions,
-    string? Description = null);
+    IReadOnlyList<RememberOption> Suggestions,
+    string? Description = null,
+    string Headline = "",
+    string CommandPrefix = "");
 
 /// <param name="LastPrompt">Truncated copy of the user's last prompt. In memory only; never written to disk.</param>
 /// <param name="ClientApp">"VS Code", "Terminal", ... when the forwarder could tell.</param>
+/// <param name="Agent">Display name of the agent running the session ("Claude Code").</param>
+/// <param name="Project"><see cref="ProjectRef.Key"/> of the project folder, when known.</param>
 public sealed record SessionInfo(
     string SessionId,
     string DisplayName,
@@ -40,7 +51,9 @@ public sealed record SessionInfo(
     DateTimeOffset LastSeen,
     DateTimeOffset? LastPermissionResolvedAt,
     string? LastPrompt = null,
-    string? ClientApp = null);
+    string? ClientApp = null,
+    string? Agent = null,
+    string? Project = null);
 
 /// <summary>What the presentation layer should show or clear after a store update.</summary>
 public abstract record StoreEffect;
@@ -50,7 +63,8 @@ public sealed record PermissionShown(
     string DisplayName,
     PendingPermission Permission,
     string? LastPrompt = null,
-    string? ClientApp = null) : StoreEffect;
+    string? ClientApp = null,
+    string? Agent = null) : StoreEffect;
 
 public sealed record PermissionCleared(string SessionId, string RequestId, PermissionOutcome Outcome) : StoreEffect;
 
@@ -60,8 +74,15 @@ public sealed record NoticeShown(
     SessionPhase Phase,
     string Text,
     string? LastPrompt = null,
-    string? ClientApp = null) : StoreEffect;
+    string? ClientApp = null,
+    string? Agent = null) : StoreEffect;
 
 public sealed record NoticeCleared(string SessionId) : StoreEffect;
 
 public sealed record SessionRemoved(string SessionId) : StoreEffect;
+
+/// <summary>A session from a folder the user has not decided about yet reached the island: ask whether to show it.</summary>
+public sealed record ProjectApprovalRequested(ProjectRef Project, string? Agent = null) : StoreEffect;
+
+/// <summary>The user decided about a project (or forgot it: <see cref="ProjectDecision.Unknown"/>).</summary>
+public sealed record ProjectDecided(ProjectRef Project, ProjectDecision Decision) : StoreEffect;

@@ -4,31 +4,29 @@ using System.Text.Json;
 namespace Island.Core;
 
 /// <summary>
-/// Forwarder side of the pipe. Throws when the app is unreachable; callers treat that as "stay silent".
+/// Forwarder side of the pipe, for any agent. Throws when the app is unreachable; callers treat that as "stay silent".
+/// The agent integration decides which events wait for an answer and what the payload looks like.
 /// </summary>
 public static class IslandClient
 {
     /// <summary>
-    /// Sends one hook payload. For PermissionRequest, waits for a decision until <paramref name="decisionTimeout"/>.
+    /// Sends one hook payload. When <paramref name="wait"/> is set, waits for the answer until <paramref name="decisionTimeout"/>.
     /// </summary>
-    /// <returns>The hookSpecificOutput JSON to print to stdout, or null when there is nothing to print.</returns>
-    public static async Task<string?> ForwardHookAsync(
+    /// <returns>Text to print to the hook's stdout, or null when there is nothing to print.</returns>
+    public static async Task<string?> ForwardAsync(
         string pipeName,
-        string stdinJson,
+        string agent,
+        JsonElement payload,
+        bool wait,
         int clientPid,
+        string? clientApp,
         DateTimeOffset now,
         TimeSpan connectTimeout,
         TimeSpan decisionTimeout,
-        string? clientApp = null)
+        string? project = null)
     {
-        using var doc = JsonDocument.Parse(stdinJson.TrimStart('﻿'));
-        var root = doc.RootElement;
-        var eventName = JsonUtil.Str(root, "hook_event_name");
-        if (eventName is null) return null; // not a hook payload: nothing to forward
-
-        var wait = eventName == "PermissionRequest";
         var id = Guid.NewGuid().ToString("N");
-        var line = Frames.EncodeHook(id, now.ToUnixTimeMilliseconds(), clientPid, wait, root, clientApp);
+        var line = Frames.EncodeHook(id, agent, now.ToUnixTimeMilliseconds(), clientPid, wait, payload, clientApp, project);
 
         if (!PipeExists(pipeName)) throw new IOException("Island app is not running.");
 
@@ -46,14 +44,13 @@ public static class IslandClient
             }
             catch (OperationCanceledException)
             {
-                return null; // deadline passed: fall back to Claude Code's own prompt
+                return null; // deadline passed: fall back to the agent's own prompt
             }
         }
         if (responseLine is null) return null;
 
-        var (responseId, decision) = Frames.DecodeResponse(responseLine);
-        if (responseId != id || decision is null) return null;
-        return PermissionDecision.HookOutput(decision);
+        var (responseId, output) = Frames.DecodeResponse(responseLine);
+        return responseId == id && !string.IsNullOrEmpty(output) ? output : null;
     }
 
     /// <summary>

@@ -1,7 +1,8 @@
 using System.Globalization;
 using System.Text.Json;
+using Island.Core;
 
-namespace Island.Core;
+namespace Island.ClaudeCode;
 
 /// <summary>Turns the two known usage payload shapes into a <see cref="UsageSnapshot"/>.</summary>
 public static class UsageParser

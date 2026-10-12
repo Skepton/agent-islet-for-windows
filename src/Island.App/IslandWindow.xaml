@@ -168,6 +168,37 @@
             </Border>
         </DataTemplate>
 
+        <!-- New project: show it or ignore it -->
+        <DataTemplate DataType="{x:Type local:ProjectCardViewModel}">
+            <Border Style="{StaticResource CardBorder}">
+                <StackPanel>
+                    <DockPanel LastChildFill="True">
+                        <ItemsControl DockPanel.Dock="Right" ItemsSource="{Binding Chips}" ItemTemplate="{StaticResource ChipTemplate}"
+                                      VerticalAlignment="Center" Focusable="False">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate><StackPanel Orientation="Horizontal" /></ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                        </ItemsControl>
+                        <Ellipse DockPanel.Dock="Left" Style="{StaticResource StatusDot}" />
+                        <TextBlock Text="{Binding Title}" Style="{StaticResource TitleText}" VerticalAlignment="Center" />
+                    </DockPanel>
+
+                    <TextBlock Text="{Binding Question}" Style="{StaticResource AccentText}" Margin="17,5,0,0" />
+                    <TextBlock Text="{Binding Path}" Style="{StaticResource SecondaryText}" Margin="17,3,0,10"
+                               ToolTip="{Binding Path}" TextTrimming="CharacterEllipsis" />
+
+                    <UniformGrid Rows="1">
+                        <Button Content="Ignore" Command="{Binding Ignore}" Style="{StaticResource IslandButton}" Margin="3,0" />
+                        <Button Content="Show" Command="{Binding Show}" Style="{StaticResource IslandButton}" Margin="3,0"
+                                Background="{StaticResource AccentBrush}" />
+                    </UniformGrid>
+
+                    <TextBlock Text="Change this any time in Settings (tray icon)." Style="{StaticResource SecondaryText}"
+                               HorizontalAlignment="Center" Margin="0,6,0,0" />
+                </StackPanel>
+            </Border>
+        </DataTemplate>
+
         <!-- Usage milestone -->
         <DataTemplate DataType="{x:Type local:UsageCardViewModel}">
             <Border Style="{StaticResource CardBorder}">

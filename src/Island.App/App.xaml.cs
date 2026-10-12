@@ -1,6 +1,7 @@
 using System.Net.Http;
 using System.Windows;
 using System.Windows.Threading;
+using Island.ClaudeCode;
 using Island.Core;
 
 namespace Island.App;
@@ -13,6 +14,8 @@ public partial class App : Application
     private TrayIconHost? _tray;
     private DebugViewModel? _viewModel;
     private MainWindow? _window;
+    private SettingsViewModel? _settings;
+    private SettingsWindow? _settingsWindow;
     private OverlayController? _overlay;
     private DemoDriver? _demo;
     private HttpClient? _http;
@@ -45,19 +48,31 @@ public partial class App : Application
             return;
         }
 
+        // Every supported agent is listed here; each lives in its own integration library.
+        var agents = new IAgentIntegration[] { new ClaudeCodeAgent() };
+
+        // Only projects the user chose to show reach the island. --allow-all-projects skips that (smoke scripts, debugging).
+        var askAboutProjects = !e.Args.Contains("--allow-all-projects");
+        var projects = askAboutProjects ? new ProjectPolicy(new ProjectPolicyStore()) : null;
+
         var hub = new IslandHub(
             new SessionStore(),
             new PermissionBroker(),
+            agents,
             effects => Dispatcher.InvokeAsync(() =>
             {
                 _viewModel?.Apply(effects);
                 _overlay?.OnEffects(effects);
-            }));
+                if (effects.Any(x => x is ProjectDecided)) _settings?.Refresh();
+            }),
+            projects: projects);
 
         _viewModel = new DebugViewModel(hub);
         _window = new MainWindow(_viewModel);
+        _settings = new SettingsViewModel(hub, askAboutProjects);
+        _settingsWindow = new SettingsWindow(_settings);
         _overlay = new OverlayController(hub, _viewModel.LogLine, ShowWindow);
-        _tray = new TrayIconHost(ShowWindow, Quit);
+        _tray = new TrayIconHost(ShowWindow, ShowSettings, Quit);
 
         _shutdown = new CancellationTokenSource();
 
@@ -128,6 +143,15 @@ public partial class App : Application
         _window.Activate();
     }
 
+    private void ShowSettings()
+    {
+        if (_settingsWindow is null) return;
+        _settings?.Refresh();
+        _settingsWindow.Show();
+        _settingsWindow.WindowState = WindowState.Normal;
+        _settingsWindow.Activate();
+    }
+
     private void OnServerFailed(Exception? error)
     {
         MessageBox.Show(
@@ -154,6 +178,7 @@ public partial class App : Application
         _overlay?.Dispose();
         _tray?.Dispose();
         _window?.ReallyClose();
+        _settingsWindow?.ReallyClose();
 
         try
         {

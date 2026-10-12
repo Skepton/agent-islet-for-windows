@@ -1,20 +1,13 @@
 namespace Island.Core;
 
 /// <summary>
-/// Per-session state machine fed by hook payloads. Pure logic: no I/O, no UI.
+/// Per-session state machine fed by agent events. Pure logic: no I/O, no UI, nothing agent-specific.
 /// Every method returns the effects the presentation layer should apply.
 /// </summary>
 public sealed class SessionStore
 {
     private static readonly TimeSpan DefaultDedupeWindow = TimeSpan.FromSeconds(10);
     private static readonly TimeSpan Retention = TimeSpan.FromHours(12);
-
-    // Notification types that mean "Claude is waiting for a human". permission_prompt is only a
-    // duplicate of a PermissionRequest card, so it is filtered separately in Apply.
-    private static readonly string[] NeedsYouTypes =
-    [
-        "permission_prompt", "idle_prompt", "elicitation_dialog", "elicitation_url_dialog", "agent_needs_input",
-    ];
 
     private readonly object _gate = new();
     private readonly Dictionary<string, SessionInfo> _sessions = new(StringComparer.Ordinal);
@@ -33,16 +26,15 @@ public sealed class SessionStore
         }
     }
 
-    /// <param name="requestId">Frame id. Becomes the permission request id for PermissionRequest.</param>
-    public IReadOnlyList<StoreEffect> Apply(HookPayload hook, string requestId, DateTimeOffset now)
+    public IReadOnlyList<StoreEffect> Apply(AgentEvent evt, DateTimeOffset now)
     {
         var effects = new List<StoreEffect>();
-        var sid = hook.SessionId;
+        var sid = evt.SessionId;
         if (string.IsNullOrEmpty(sid)) return effects;
 
         lock (_gate)
         {
-            if (hook.EventName == "SessionEnd")
+            if (evt is SessionEnded)
             {
                 if (_sessions.TryGetValue(sid, out var ending))
                 {
@@ -53,61 +45,52 @@ public sealed class SessionStore
                 return effects;
             }
 
-            var s = Touch(sid, hook, now);
-            switch (hook.EventName)
+            var s = Touch(sid, evt, now);
+            switch (evt)
             {
-                case "SessionStart":
+                case SessionStarted:
                     s = ClearNotice(s, effects) with { Phase = SessionPhase.Idle };
                     break;
 
-                case "UserPromptSubmit":
+                case PromptSubmitted submitted:
                     s = Working(ReleasePending(s, now, PermissionOutcome.ResolvedElsewhere, effects), effects);
-                    if (!string.IsNullOrWhiteSpace(hook.Prompt)) s = s with { LastPrompt = TextUtil.Truncate(hook.Prompt, 160) };
+                    if (!string.IsNullOrWhiteSpace(submitted.Prompt)) s = s with { LastPrompt = TextUtil.Truncate(submitted.Prompt, 160) };
                     break;
 
-                case "PermissionRequest":
+                case PermissionRequested requested:
                 {
                     s = ReleasePending(s, now, PermissionOutcome.Superseded, effects);
-                    var pending = new PendingPermission(
-                        requestId,
-                        hook.ToolName ?? "tool",
-                        ToolSummary.Describe(hook.ToolName, hook.ToolInputJson),
-                        hook.PermissionMode ?? "",
-                        SuggestionChoice.FromRaw(hook.PermissionSuggestionsJson),
-                        ToolSummary.Description(hook.ToolName, hook.ToolInputJson));
+                    var pending = requested.Permission;
                     s = ClearNotice(s, effects) with { Phase = SessionPhase.NeedsPermission, Pending = pending };
-                    effects.Add(new PermissionShown(sid, s.DisplayName, pending, s.LastPrompt, s.ClientApp));
+                    effects.Add(new PermissionShown(sid, s.DisplayName, pending, s.LastPrompt, s.ClientApp, s.Agent));
                     break;
                 }
 
-                case "PostToolUse":
-                case "PermissionDenied":
+                case ToolProceeded:
                     s = Working(ReleasePending(s, now, PermissionOutcome.ResolvedElsewhere, effects), effects);
                     break;
 
-                case "Notification":
+                case InputRequested input:
                 {
-                    var type = hook.NotificationType;
-                    // Claude Code sends permission_prompt ~6 s after the PermissionRequest; it is a duplicate
-                    // of the card when one is showing or was just answered.
-                    var duplicateOfCard = type == "permission_prompt" && (s.Pending is not null || RecentlyResolved(s, now));
-                    if (!duplicateOfCard && type is not null && NeedsYouTypes.Contains(type))
+                    // An echo of a permission request is a duplicate of its card while it shows or was just answered.
+                    var duplicateOfCard = input.EchoesPermission && (s.Pending is not null || RecentlyResolved(s, now));
+                    if (!duplicateOfCard)
                     {
-                        var text = TextUtil.Truncate(hook.Message ?? type, 160);
+                        var text = TextUtil.Truncate(input.Text, 160);
                         s = s with { Phase = SessionPhase.NeedsInput, Notice = text };
-                        effects.Add(new NoticeShown(sid, s.DisplayName, SessionPhase.NeedsInput, text, s.LastPrompt, s.ClientApp));
+                        effects.Add(new NoticeShown(sid, s.DisplayName, SessionPhase.NeedsInput, text, s.LastPrompt, s.ClientApp, s.Agent));
                     }
                     break;
                 }
 
-                case "Stop":
+                case TurnFinished finished:
                 {
                     s = ReleasePending(s, now, PermissionOutcome.ResolvedElsewhere, effects);
-                    if (!hook.StopHookActive)
+                    if (!finished.Continuing)
                     {
-                        var text = TextUtil.Truncate(hook.LastAssistantMessage ?? "Finished", 400);
+                        var text = TextUtil.Truncate(finished.Message ?? "Finished", 400);
                         s = s with { Phase = SessionPhase.Finished, Notice = text };
-                        effects.Add(new NoticeShown(sid, s.DisplayName, SessionPhase.Finished, text, s.LastPrompt, s.ClientApp));
+                        effects.Add(new NoticeShown(sid, s.DisplayName, SessionPhase.Finished, text, s.LastPrompt, s.ClientApp, s.Agent));
                     }
                     break;
                 }
@@ -134,6 +117,22 @@ public sealed class SessionStore
         return effects;
     }
 
+    /// <summary>Removes every session of a project (the user chose to ignore it), releasing its pending request.</summary>
+    public IReadOnlyList<StoreEffect> RemoveProject(string projectKey, DateTimeOffset now)
+    {
+        var effects = new List<StoreEffect>();
+        lock (_gate)
+        {
+            foreach (var session in _sessions.Values.Where(s => s.Project == projectKey).ToList())
+            {
+                ReleasePending(session, now, PermissionOutcome.Abandoned, effects);
+                _sessions.Remove(session.SessionId);
+                effects.Add(new SessionRemoved(session.SessionId));
+            }
+        }
+        return effects;
+    }
+
     /// <summary>Removes sessions that have been silent for longer than the retention period.</summary>
     public IReadOnlyList<StoreEffect> Prune(DateTimeOffset now)
     {
@@ -150,17 +149,19 @@ public sealed class SessionStore
         return effects;
     }
 
-    private SessionInfo Touch(string sid, HookPayload hook, DateTimeOffset now)
+    private SessionInfo Touch(string sid, AgentEvent evt, DateTimeOffset now)
     {
         _sessions.TryGetValue(sid, out var existing);
-        var cwd = hook.Cwd ?? existing?.Cwd;
+        var cwd = evt.Cwd ?? existing?.Cwd;
         var session = existing ?? new SessionInfo(sid, "", null, SessionPhase.Idle, null, null, now, null);
         return session with
         {
             Cwd = cwd,
-            DisplayName = DisplayNameFor(cwd, hook.SessionTitle, sid),
+            DisplayName = DisplayNameFor(cwd, evt.SessionTitle, sid),
             LastSeen = now,
-            ClientApp = hook.ClientApp ?? session.ClientApp,
+            ClientApp = evt.ClientApp ?? session.ClientApp,
+            Agent = evt.Agent ?? session.Agent,
+            Project = evt.Project ?? session.Project,
         };
     }
 

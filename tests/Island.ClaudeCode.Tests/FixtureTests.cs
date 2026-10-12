@@ -1,6 +1,7 @@
+using Island.ClaudeCode;
 using Island.Core;
 
-namespace Island.Core.Tests;
+namespace Island.ClaudeCode.Tests;
 
 public class FixtureTests
 {

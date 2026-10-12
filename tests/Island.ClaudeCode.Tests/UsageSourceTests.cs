@@ -1,8 +1,9 @@
 using System.Net;
 using System.Text.Json.Nodes;
+using Island.ClaudeCode;
 using Island.Core;
 
-namespace Island.Core.Tests;
+namespace Island.ClaudeCode.Tests;
 
 public sealed class UsageSourceTests : IDisposable
 {

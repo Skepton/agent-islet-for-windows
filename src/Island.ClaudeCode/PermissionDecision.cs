@@ -1,7 +1,7 @@
 using System.Text;
 using System.Text.Json;
 
-namespace Island.Core;
+namespace Island.ClaudeCode;
 
 /// <summary>
 /// Builds the decision objects Claude Code's PermissionRequest hook understands.

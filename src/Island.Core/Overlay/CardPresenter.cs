@@ -1,5 +1,4 @@
 using System.Globalization;
-using System.Text.Json;
 
 namespace Island.Core;
 
@@ -31,12 +30,15 @@ public sealed record NoticeCardText(
     bool IsDone,
     IReadOnlyList<string> Chips);
 
+/// <param name="Path">The full folder path, so two projects with the same name can be told apart.</param>
+public sealed record ProjectCardText(string Title, string Question, string Path, IReadOnlyList<string> Chips);
+
 /// <param name="Level">See <see cref="UsageFormat.Level"/>.</param>
 public sealed record UsageCardText(string Title, double Percent, int Level, string ResetsText);
 
-/// <param name="DecisionJson">Decision object for <c>IslandHub.Answer</c>; null means "no decision, answer in the terminal".</param>
+/// <param name="Verdict">For <c>IslandHub.Answer</c>; null means "no decision, answer in the terminal".</param>
 /// <param name="Log">One line for the debug log describing what is being sent.</param>
-public sealed record PermissionAnswer(string? DecisionJson, PermissionOutcome Outcome, string Log);
+public sealed record PermissionAnswer(PermissionVerdict? Verdict, PermissionOutcome Outcome, string Log);
 
 /// <param name="Level">See <see cref="UsageFormat.Level"/>.</param>
 public sealed record UsageStripItem(string Label, string PercentText, int Level, string Countdown);
@@ -51,7 +53,6 @@ public static class CardPresenter
     {
         var permission = card.Permission;
         var tool = permission.ToolName;
-        var isShell = tool is "Bash" or "PowerShell";
 
         var actions = new List<PermissionAction>
         {
@@ -59,17 +60,17 @@ public static class CardPresenter
             new(PermissionActionKind.Allow, "Yes"),
         };
         for (var i = 0; i < permission.Suggestions.Count; i++)
-            actions.Add(new PermissionAction(PermissionActionKind.Remember, SuggestionLabel(permission.Suggestions[i], tool), i));
+            actions.Add(new PermissionAction(PermissionActionKind.Remember, permission.Suggestions[i].ButtonLabel, i));
 
         return new PermissionCardText(
             Title(card.SessionName, card.LastPrompt),
             YouLine(card.LastPrompt),
-            isShell ? $"Claude wants to run {tool}." : $"Claude wants to use {tool}.",
+            string.IsNullOrWhiteSpace(permission.Headline) ? $"Permission needed to use {tool}." : permission.Headline,
             tool,
-            tool switch { "Bash" => "$", "PowerShell" => "PS>", _ => "" },
+            permission.CommandPrefix,
             permission.Summary,
             string.IsNullOrWhiteSpace(permission.Description) ? null : permission.Description,
-            Chips(card.ClientApp, now - card.CreatedAt),
+            Chips(card.Agent, card.ClientApp, now - card.CreatedAt),
             actions);
     }
 
@@ -78,7 +79,13 @@ public static class CardPresenter
         YouLine(card.LastPrompt),
         card.Text,
         card.Phase == SessionPhase.Finished,
-        Chips(card.ClientApp, now - card.CreatedAt));
+        Chips(card.Agent, card.ClientApp, now - card.CreatedAt));
+
+    public static ProjectCardText Present(ProjectCard card) => new(
+        $"New project: {card.Project.Name}",
+        $"Show {(string.IsNullOrWhiteSpace(card.Agent) ? "agent" : card.Agent)} sessions from this folder on the island?",
+        card.Project.Path,
+        string.IsNullOrWhiteSpace(card.Agent) ? Array.Empty<string>() : new[] { card.Agent });
 
     /// <param name="zone">Zone for the reset time; local time when null.</param>
     public static UsageCardText Present(UsageCard card, TimeZoneInfo? zone = null)
@@ -107,34 +114,26 @@ public static class CardPresenter
                 UsageFormat.Countdown(w.ResetsAt - now)))
             .ToList();
 
-    /// <summary>What a click on <paramref name="action"/> sends to Claude Code.</summary>
+    /// <summary>What a click on <paramref name="action"/> sends to the agent.</summary>
     public static PermissionAnswer Answer(PermissionCard card, PermissionAction action)
     {
         var tool = card.Permission.ToolName;
+        var suggestions = card.Permission.Suggestions;
         switch (action.Kind)
         {
             case PermissionActionKind.Deny:
+                return new PermissionAnswer(PermissionVerdict.Deny(), PermissionOutcome.Answered, $"{tool}: deny");
+            case PermissionActionKind.Remember when action.SuggestionIndex >= 0 && action.SuggestionIndex < suggestions.Count:
+                var option = suggestions[action.SuggestionIndex];
                 return new PermissionAnswer(
-                    PermissionDecision.Deny("Denied from Claude Code Island"), PermissionOutcome.Answered, $"{tool}: deny");
-            case PermissionActionKind.Remember when action.SuggestionIndex >= 0 && action.SuggestionIndex < card.Permission.Suggestions.Count:
-                var raw = card.Permission.Suggestions[action.SuggestionIndex].RawJson;
-                return new PermissionAnswer(
-                    PermissionDecision.Allow(new[] { raw }), PermissionOutcome.Answered, $"{tool}: allow, sending update to Claude Code: {raw}");
+                    PermissionVerdict.Remember(option), PermissionOutcome.Answered, $"{tool}: allow and remember: {option.Detail}");
             default:
-                return new PermissionAnswer(PermissionDecision.Allow(), PermissionOutcome.Answered, $"{tool}: allow");
+                return new PermissionAnswer(PermissionVerdict.Allow, PermissionOutcome.Answered, $"{tool}: allow");
         }
     }
 
     public static PermissionAnswer AnswerInTerminal(PermissionCard card) =>
         new(null, PermissionOutcome.DeferredToTerminal, $"{card.Permission.ToolName}: no decision, answer in terminal");
-
-    /// <summary>The label for a "remember" button. <paramref name="fallbackTool"/> names the tool when the rule itself doesn't.</summary>
-    public static string SuggestionLabel(SuggestionChoice choice, string fallbackTool) => choice.Type switch
-    {
-        "addRules" => $"Always Allow ({RuleTool(choice.RawJson) ?? fallbackTool})",
-        "addDirectories" => "Allow + add folder",
-        _ => choice.Label,
-    };
 
     private static string Title(string session, string? prompt) =>
         string.IsNullOrWhiteSpace(prompt) ? session : $"{session} · {TextUtil.Truncate(prompt, MaxPromptInTitle)}";
@@ -142,30 +141,12 @@ public static class CardPresenter
     private static string? YouLine(string? prompt) =>
         string.IsNullOrWhiteSpace(prompt) ? null : "You: " + TextUtil.Truncate(prompt, MaxPromptInYouLine);
 
-    private static IReadOnlyList<string> Chips(string? clientApp, TimeSpan age)
+    private static IReadOnlyList<string> Chips(string? agent, string? clientApp, TimeSpan age)
     {
-        var chips = new List<string> { "Claude Code" };
+        var chips = new List<string>();
+        if (!string.IsNullOrWhiteSpace(agent)) chips.Add(agent);
         if (!string.IsNullOrWhiteSpace(clientApp)) chips.Add(clientApp);
         chips.Add(UsageFormat.Age(age < TimeSpan.Zero ? TimeSpan.Zero : age));
         return chips;
-    }
-
-    private static string? RuleTool(string rawJson)
-    {
-        try
-        {
-            using var doc = JsonDocument.Parse(rawJson);
-            if (JsonUtil.Prop(doc.RootElement, "rules") is not { ValueKind: JsonValueKind.Array } rules) return null;
-            foreach (var rule in rules.EnumerateArray())
-            {
-                var tool = JsonUtil.Str(rule, "toolName");
-                if (!string.IsNullOrWhiteSpace(tool)) return tool;
-            }
-        }
-        catch (JsonException)
-        {
-            // Unknown shape: fall back to the permission's own tool name.
-        }
-        return null;
     }
 }

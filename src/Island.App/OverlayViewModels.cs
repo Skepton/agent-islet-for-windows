@@ -118,6 +118,28 @@ public sealed class NoticeCardViewModel : CardViewModel
     public override void Update(DateTimeOffset now) => Chips = CardPresenter.Present(_card, now).Chips;
 }
 
+/// <summary>"New project: x. Show its sessions on the island?" with Ignore / Show.</summary>
+public sealed class ProjectCardViewModel : CardViewModel
+{
+    public ProjectCardViewModel(ProjectCard card, Action<ProjectCard, ProjectDecision> decide) : base(card)
+    {
+        var text = CardPresenter.Present(card);
+        Title = text.Title;
+        Question = text.Question;
+        Path = text.Path;
+        Chips = text.Chips;
+        Show = new RelayCommand(() => decide(card, ProjectDecision.Allowed));
+        Ignore = new RelayCommand(() => decide(card, ProjectDecision.Ignored));
+    }
+
+    public string Title { get; }
+    public string Question { get; }
+    public string Path { get; }
+    public IReadOnlyList<string> Chips { get; }
+    public ICommand Show { get; }
+    public ICommand Ignore { get; }
+}
+
 public sealed class UsageCardViewModel : CardViewModel
 {
     public UsageCardViewModel(UsageCard card, Action<string> dismiss) : base(card)

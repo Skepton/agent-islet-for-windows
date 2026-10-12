@@ -1,4 +1,5 @@
 using System.Windows.Threading;
+using Island.ClaudeCode;
 using Island.Core;
 
 namespace Island.App;
@@ -12,6 +13,7 @@ public sealed class DemoDriver
     private const string AddRules = """{"type":"addRules","rules":[{"toolName":"Bash","ruleContent":"npm test:*"}],"behavior":"allow","destination":"localSettings"}""";
 
     private static readonly TimeSpan SceneLength = TimeSpan.FromSeconds(7);
+    private static readonly string Agent = new ClaudeCodeAgent().DisplayName;
 
     private readonly OverlayController _overlay;
     private readonly DispatcherTimer _timer;
@@ -21,7 +23,7 @@ public sealed class DemoDriver
     public DemoDriver(OverlayController overlay)
     {
         _overlay = overlay;
-        _scenes = new Action[] { Permission, NeedsInput, Finished, Milestone35, Milestone90, ThreeSessions };
+        _scenes = new Action[] { Permission, NeedsInput, Finished, NewProject, Milestone35, Milestone90, ThreeSessions };
         _timer = new DispatcherTimer { Interval = SceneLength };
         _timer.Tick += (_, _) => NextScene();
     }
@@ -48,14 +50,19 @@ public sealed class DemoDriver
     private void NeedsInput() => _overlay.OnEffects(new StoreEffect[]
     {
         new NoticeShown("s1", "my-project", SessionPhase.NeedsInput, "Claude needs your input: which database should the migration target?",
-            "add a migration for the new table", "VS Code"),
+            "add a migration for the new table", "VS Code", Agent),
     });
 
     private void Finished() => _overlay.OnEffects(new StoreEffect[]
     {
         new NoticeShown("s1", "my-project", SessionPhase.Finished,
             "I fixed the three failing tests in the parser module.\n\n- The date parser no longer drops the time zone.\n- Empty input now returns an empty list instead of throwing.\n- Added a regression test for each case.\n\nAll 214 tests pass.",
-            "fix the failing tests", "VS Code"),
+            "fix the failing tests", "VS Code", Agent),
+    });
+
+    private void NewProject() => _overlay.OnEffects(new StoreEffect[]
+    {
+        new ProjectApprovalRequested(new ProjectRef(OverlayController.DemoPrefix + "website", @"C:\Users\you\Projects\website", "website"), Agent),
     });
 
     private void Milestone35() => _overlay.OnUsage(UsageUpdateFor(fiveHour: 36, sevenDay: 55, new MilestoneEvent(UsageWindowId.FiveHour, 35, 36, Resets(3))));
@@ -68,8 +75,8 @@ public sealed class DemoDriver
         _overlay.OnEffects(new StoreEffect[]
         {
             PermissionEffect("demo-2", "s1", "my-project", "fix the failing tests"),
-            new NoticeShown("s2", "website", SessionPhase.NeedsInput, "Claude is waiting for your input", "redesign the footer", "Terminal"),
-            new NoticeShown("s3", "docs", SessionPhase.Finished, "Done. The README now explains the installer.", "update the README", "VS Code"),
+            new NoticeShown("s2", "website", SessionPhase.NeedsInput, "Claude is waiting for your input", "redesign the footer", "Terminal", Agent),
+            new NoticeShown("s3", "docs", SessionPhase.Finished, "Done. The README now explains the installer.", "update the README", "VS Code", Agent),
         });
     }
 
@@ -78,10 +85,13 @@ public sealed class DemoDriver
         name,
         new PendingPermission(
             requestId, "Bash", "npm test -- --runInBand --coverage", "default",
-            SuggestionChoice.FromRaw(new[] { AddRules }),
-            "Run the test suite with coverage"),
+            SuggestionChoice.FromRaw(new[] { AddRules }).Select(s => s.ToOption("Bash")).ToList(),
+            "Run the test suite with coverage",
+            ToolSummary.Headline("Bash"),
+            ToolSummary.CommandPrefix("Bash")),
         prompt,
-        "VS Code");
+        "VS Code",
+        Agent);
 
     private static DateTimeOffset Resets(int hours) => DateTimeOffset.UtcNow.AddHours(hours).AddMinutes(10);
 

@@ -2,7 +2,7 @@ namespace Island.Core;
 
 public sealed record UsagePollOptions
 {
-    /// <summary>Poll this often while Claude Code has been active recently.</summary>
+    /// <summary>Poll this often while an agent has been active recently.</summary>
     public TimeSpan ActiveInterval { get; init; } = TimeSpan.FromMinutes(2);
 
     /// <summary>Poll this often when nothing has happened for a while.</summary>

@@ -1,7 +1,8 @@
 using System.Net;
 using System.Net.Http.Headers;
+using Island.Core;
 
-namespace Island.Core;
+namespace Island.ClaudeCode;
 
 /// <summary>
 /// Polls the (unofficial) endpoint Claude Code's /status uses. The token is read per call, sent only in the
