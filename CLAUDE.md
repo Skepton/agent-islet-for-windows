@@ -1,12 +1,12 @@
 # Claude Code Island
 
-Windows-only overlay ("island") that shows when Claude Code needs approval/input and when usage milestones are reached. Claude Code only. C# / .NET 8 / WPF.
+Windows-only overlay ("island") that shows when Claude Code needs approval/input and when usage milestones are reached. Claude Code is the only agent today, but all agent-specific code lives in its own integration library so others can be added. C# / .NET 8 / WPF.
 
 **Read [PLAN.md](PLAN.md) first** — it is the source of truth (architecture, protocol, work packages, acceptance criteria). Real-world findings are in [docs/findings.md](docs/findings.md). Where PLAN.md says VERIFY, test it and write the result into docs/findings.md rather than guessing.
 
 ## Ground rules
 - **Fail open.** Nothing in this project may block, slow, or change Claude Code's behaviour unless the user explicitly chose so on a card. Default hook answer = print nothing, exit 0.
-- **Never modify `~/.claude/settings.json` in tests or during development** except through the installer code under test, pointed at a temp copy via `--settings <path>`. Back up before touching the real one. Do not leave hooks installed that you added.
+- **Never modify `~/.claude/settings.json` in tests or during development** except through the installer code under test, pointed at a temp copy via `--settings <path>`. Back up before touching the real one. Do not leave hooks installed that you added. **Exception (user's choice, 2026-10-12):** the user runs the island day to day via `scripts/install-local.ps1`, which installed the island's hooks in their real `~/.claude/settings.json` pointing at `%LOCALAPPDATA%\ClaudeCodeIsland\bin\island-hook.exe`. Leave those in place; remove them only when the user asks (`install-local.ps1 -Uninstall`).
 - **Never read, print, log, or commit the contents of `~/.claude/.credentials.json`.** The usage client reads `accessToken` in memory only, never writes it anywhere (not logs, not state, not exceptions), and never refreshes it.
 - Never commit anything from `logs/` (contains prompts/commands from real sessions). Fixtures in `tests/fixtures` are sanitized; keep them that way (no real usernames, prompts, or tokens).
 - Don't log full `tool_input` / prompt text at default log level.
@@ -20,10 +20,11 @@ Windows-only overlay ("island") that shows when Claude Code needs approval/input
 
 ## Layout
 ```
-src/Island.Core   shared models, IPC protocol, usage + milestone logic, settings merge
-src/Island.Hook   forwarder exe (hook + install/uninstall/simulate subcommands)
-src/Island.App    WPF overlay + tray
-tests/            xUnit + tests/fixtures (real, sanitized payloads)
+src/Island.Core        agent-neutral: IAgentIntegration, neutral events/verdicts, sessions, hub, IPC, overlay logic, usage + milestones
+src/Island.ClaudeCode  everything Claude Code: hook payloads, decision JSON, suggestions, tool summaries, OAuth usage source
+src/Island.Hook        forwarder exe (hook + install/uninstall/simulate subcommands)
+src/Island.App         WPF overlay + tray; composes the integrations
+tests/                 Island.Core.Tests (fake TestAgent, no Claude types), Island.ClaudeCode.Tests + tests/fixtures (real, sanitized payloads)
 scripts/          publish-hook.ps1, bench-hook.ps1, smoke-app.ps1, smoke-app-ui.ps1, smoke-usage.ps1 (smoke scripts run after build + publish-hook; they need no island instance already running)
 docs/             findings.md (verified behaviour), anything else long-lived
 ```
@@ -32,4 +33,5 @@ docs/             findings.md (verified behaviour), anything else long-lived
 - C# 12, nullable enabled, warnings as errors, file-scoped namespaces. `System.Text.Json` only (source-generated contexts, no reflection serialization) so the forwarder stays trimmable.
 - Every payload parser must tolerate unknown/missing fields (Claude Code versions differ). Parse against the fixtures in `tests/fixtures`.
 - Keep UI logic in view-models that can be unit-tested without a window.
+- **Island.Core must not know any agent.** No Claude Code event names, payload fields, output formats or wording in Core; they go in `Island.ClaudeCode` behind `IAgentIntegration`. Core tests use `TestAgent`.
 - Small, focused commits only when the user asks for them.

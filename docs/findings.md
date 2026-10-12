@@ -31,6 +31,15 @@ Phase 0 was run with throwaway Node logging hooks. **That tooling has been remov
 | F1 | Fixtures | `tests/fixtures/hooks/*.json` generated from real logged payloads (sanitised: no real usernames, prompts or tool output). The generator was removed with the spike; edit the JSON by hand or capture new payloads through the real app. Two `permission_suggestions` shapes captured: `addRules` and `addDirectories`. `permission_mode` observed: `acceptEdits`, and Bash still triggers PermissionRequest under it. |
 | T1 | Tooling | No Visual Studio / C++ build tools (no NativeAOT). .NET SDK 8.0.425 working. `winget` install succeeded unattended. |
 
+## First live install (2026-10-12, session 3)
+
+| # | Question | Result |
+|---|---|---|
+| L1 | User-level install reaches running sessions | **Yes.** `install-local.ps1` wrote the 7 hooks to `~/.claude/settings.json` at 17:02:20 local; already-running sessions in **two** projects (`claude-code-island`, `soccer-fk`) reached the island and the user answered both "New project" cards within ~15 s. No restart needed; no Code Integrity blocks for the published app or forwarder. |
+| L2 | `CLAUDE_PROJECT_DIR` | Arrives with a **lowercase drive letter** (`c:\Users\…`); keys compare case-insensitively, so this is harmless. |
+| L3 | Subagents in worktrees | A `soccer-fk` subagent's events had `cwd` = its worktree (card titled `agent-a5f3f52fcc40cf5a3`, the worktree folder) while `CLAUDE_PROJECT_DIR` was the main project: the approval for `soccer-fk` covered it (it got through without a new question). Inferred from the card and `projects.json`, not from a logged payload. Follow-up: name such sessions after the project, not the worktree. |
+| L4 | Live permission card | A real PowerShell `git commit` request from that subagent showed on the island with No / Yes / Always Allow (PowerShell) and "Answer in terminal", alongside the VS Code prompt. |
+
 ## Still open — needs a human at a real prompt (to be tested with the real app in WP3, see "Open tests" below)
 
 - **Q2 (narrowed, see Q2'):** does answering the permission dialog kill a still-running hook process? (Design is safe either way.)

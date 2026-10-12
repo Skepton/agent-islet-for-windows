@@ -17,7 +17,7 @@ Legend: **[V]** verified on this machine · **[D]** from official docs, not obse
 4. Several concurrent sessions across projects/windows **[V: user runs ≥2 at once]**.
 5. Tray icon, settings, one-click hook install/uninstall, optional start-with-Windows.
 
-**Out of scope for v1:** other agents, macOS/Linux, jumping focus back to the originating window (phase 6), auto-update, installing a status line.
+**Out of scope for v1:** other agents (but the code is split so one can be added as its own integration library, §4.1), macOS/Linux, jumping focus back to the originating window (phase 6), auto-update, installing a status line.
 
 "Daily" limit in the original ask = Claude's **5-hour** window; there is no daily window. Weekly = **7-day**.
 
@@ -114,19 +114,25 @@ IUsageSource: EndpointPoller (HTTPS poll) ────────────�
 ### 4.1 Layout
 ```
 ClaudeCodeIsland.sln
-src/Island.Core   models (STJ source-gen), IPC protocol, PermissionDecision builder, SessionState machine,
-                  IUsageSource + endpoint client + MilestoneEngine, SettingsMerger, paths/config
-src/Island.Hook   exe "island-hook": `hook` (forwarder), `install`, `uninstall`, `simulate <fixture>`
-src/Island.App    exe "ClaudeCodeIsland": pipe server, session store, overlay, tray, settings UI
-tests/Island.Core.Tests   xUnit against tests/fixtures
+src/Island.Core        agent-neutral: IAgentIntegration, AgentEvent / PermissionVerdict, session state machine, hub,
+                       IPC protocol + pipe transport, overlay card queue + presenter, IUsageSource + MilestoneEngine, paths
+src/Island.ClaudeCode  everything Claude Code: hook payload parsing, event mapping, PermissionRequest decision JSON,
+                       permission_suggestions labels, tool summaries, forwarder side (CLAUDE_* env), OAuth usage source
+src/Island.Hook        exe "island-hook": `hook` (forwarder), `install`, `uninstall`, `simulate <fixture>`
+src/Island.App         exe "ClaudeCodeIsland": composes the integrations; pipe server, overlay, tray, settings UI
+tests/Island.Core.Tests        xUnit; drives Core with a made-up second agent (TestAgent), no Claude Code types
+tests/Island.ClaudeCode.Tests  xUnit against tests/fixtures
 tests/fixtures/{hooks,usage}   real, sanitized payloads (already present)
 ```
 
+**Agent split.** Core never sees an agent's payload format or output format. An integration (`IAgentIntegration`) translates a hook payload into a neutral `AgentEvent` (`SessionStarted`, `PromptSubmitted`, `PermissionRequested`, `ToolProceeded`, `InputRequested`, `TurnFinished`, `SessionEnded`, `SessionActivity`) and encodes the user's `PermissionVerdict` (allow / deny / remember an offered `RememberOption`; null = no decision) into the exact text the hook prints. It also supplies every agent-specific display string on a card (headline, command prefix, button labels). Adding an agent = a new `Island.<Agent>` library implementing that, a forwarder subcommand for its hook, registration in `App.xaml.cs`, and its own installer.
+
 ### 4.2 IPC
 - Named pipe `\\.\pipe\claude-code-island-<current user SID>`, `PipeOptions.CurrentUserOnly` on **both** ends (the pipe can approve tool calls → security boundary).
-- One connection per hook call, UTF-8 newline-delimited JSON.
-  - C→S: `{"v":1,"id":"<guid>","kind":"hook","receivedAt":<unix ms>,"clientPid":<n>,"payload":<raw stdin JSON>}`
-  - S→C (PermissionRequest only): `{"v":1,"id":"<same>","decision":<§2.3 decision object>|null}`; `null` = no decision.
+- One connection per hook call, UTF-8 newline-delimited JSON. Protocol **v2** (v1 had no `agent` and returned a decision object; nothing with v1 was ever installed).
+  - C→S: `{"v":2,"id":"<guid>","kind":"hook","agent":"claude-code","receivedAt":<unix ms>,"clientPid":<n>,"wait":<bool>,"clientApp":"VS Code"?,"payload":<raw stdin JSON>}`
+  - S→C (only when `wait`): `{"v":2,"id":"<same>","output":"<text>"|null}`. The forwarder prints `output` verbatim (for Claude Code: the §2.3 hookSpecificOutput JSON); `null` = print nothing = no decision.
+  - A frame naming an agent the app does not know is ignored (no decision).
 - Ignore unknown fields and unknown `kind`; `v` lets old forwarders and new apps coexist.
 - The server must detect a **dropped client** (forwarder killed because the user answered in the terminal) and clear that card.
 
@@ -248,7 +254,9 @@ Focus the originating window (parent-process walk from forwarder → window hand
 | WP3 App shell + pipe server + tray | done (one manual check left) | App hosts `IslandServer`/`IslandHub`, single-instance mutex, tray icon (Show / Quit), debug window (pending permission cards with Allow / remember / Deny / Answer in terminal buttons, sessions, event log), `--tray` starts hidden, 10-minute prune. `scripts/smoke-app.ps1` (10 checks) and `scripts/smoke-app-ui.ps1` (clicks the real buttons via UI Automation) pass. Latency with the app running: 50 ms median. **Left:** a real Claude Code session driving it (needs WP6's installer), and eyeballing the tray icon. |
 | WP4 Overlay UI | done (a few manual checks left) | Card queue and priorities (`OverlayState`), `CardPresenter` (all display text and answers, tested), card view-models, `IslandWindow` (borderless, topmost, `WS_EX_NOACTIVATE`, top-centre of the foreground monitor, slide + fade, click-through while only the usage strip shows), `OverlayController` (answers via the hub, expiry, full-screen suppression), `--demo` mode cycling every card type. `scripts/smoke-overlay.ps1` (16 checks, real mouse clicks) proves the island never takes focus from VS Code and its buttons work under `NOACTIVATE`. Visual match with the reference checked on screenshots. **Left (unverified):** Windows Terminal in front, click-through strip over title bars, top taskbar, mixed-DPI monitors, a finer visual pass. See `docs/HANDOFF.md`. |
 | WP5 Usage + milestones | done (UI not wired) | `UsageParser` (endpoint + status-line shapes), `OAuthCredentialsReader` (read-only; `SecretToken` redacts itself), `OAuthUsageSource` (never logs the token, no request when the token is expired), `MilestoneEngine` + `MilestoneStateStore` (atomic, `ISLAND_DATA_DIR` override), `PollSchedule` (2 min active / 15 min idle, backoff, Retry-After, jitter), `UsageMonitor` (wakes early on activity). 72 new tests (124 total). App polls only with the explicit `--poll-usage` flag (stands in for the first-run consent until WP7); the debug window shows usage and logs milestones. `scripts/smoke-usage.ps1` verified a live poll and that no token reaches any file. **Left:** the milestone popup itself (WP4) and the consent dialog + threshold settings (WP7). |
-| WP6 Installer | not started | Must never touch the real settings in tests. |
+| Agent split | done | Claude Code code moved into `src/Island.ClaudeCode`; Core is agent-neutral (§4.1); pipe protocol v2 (§4.2). 235 tests (Core 128 with a fake second agent, Claude Code 107). `smoke-app` and `smoke-app-ui` pass against the republished forwarder; latency unchanged (51 ms median with the app running). |
+| Project approval | done (UI not yet seen live) | The hub only lets through projects the user chose to show (`ProjectPolicy`, saved to `projects.json`; key = `CLAUDE_PROJECT_DIR`, else the payload's `cwd`, case-insensitive). A new project raises one "New project: x — Ignore / Show" card; until answered its events are dropped (a permission request gets no decision at once, so Claude Code shows its own dialog). Tray → Settings lists projects with Show / Ignore / Forget; ignoring or forgetting drops that project's sessions and cards. `--allow-all-projects` turns it off (smoke scripts). Folder paths are the only payload-derived data written to disk. |
+| WP6 Installer | done | `island-hook install|uninstall [--settings <path>] [--dry-run]` (`HookSettings` pure transform + `SettingsFile`). Registers the command the running exe sits at; `scripts/install-local.ps1` publishes forwarder + app to `%LOCALAPPDATA%\ClaudeCodeIsland\{bin,app}` first, then installs at user level and starts the app. Timeouts: PermissionRequest 600 s, SessionEnd 2 s, others 10 s; no matcher (= all). Backups never overwrite each other. Test matrix (missing, empty, only-model, foreign hooks, shared group, re-install, moved exe, invalid JSON, comments, BOM, CRLF, dry run) passes; round trip on a copy of the user's real settings is exact. Deviation from §4.7: install does not copy itself; the script places the exe. |
 | WP7 Packaging, settings UI, docs | not started | `scripts/publish-hook.ps1` exists for the forwarder. |
 
 Scripts: `scripts/publish-hook.ps1` (single-file forwarder into `artifacts/hook`), `scripts/bench-hook.ps1` (per-call latency), `scripts/smoke-app.ps1` and `scripts/smoke-app-ui.ps1` (launch the real app and drive it with the real forwarder; the UI one briefly shows a window), `scripts/smoke-usage.ps1` (one live usage poll against a throwaway data folder). All smoke scripts need no island instance already running.

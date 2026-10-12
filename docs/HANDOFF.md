@@ -6,8 +6,12 @@ Read this, then `CLAUDE.md` (ground rules) and `PLAN.md` (architecture, work pac
 A Windows-only, Claude Code-only "island" that drops down from the top-centre of the screen when Claude Code needs the user (permission approval, waiting for input), shows usage milestones for the 5-hour and 7-day limits, and lets the user approve or deny from the island. C# / .NET 8 / WPF. Inspired by Open Island (macOS).
 
 ## State right now
-- Branch `main`, all work committed locally, **nothing pushed**. Git identity is repo-local (`xeino <xeinon@gmail.com>`, guessed; change with `git config user.name/user.email` and rewrite if wrong). Commits carry the `Co-Authored-By: Claude Sonnet 5.5` trailer.
-- Every commit builds. 189 tests pass. The three app smoke scripts pass (`smoke-app`, `smoke-app-ui`, `smoke-overlay`); `smoke-usage` was not re-run this session.
+- Branch `main`, pushed to `git@github.com:Skepton/win-ai-squared.git` (SSH key in `~/.ssh/id_ed25519`). Git identity `xeino <xeinon@gmail.com>` is correct.
+- Every commit builds. 235 tests pass (Core 128, Claude Code 107). `smoke-app` and `smoke-app-ui` pass after the agent split; `smoke-overlay` and `smoke-usage` were not re-run since.
+- **Agent split (session 3):** all Claude Code code now lives in `src/Island.ClaudeCode`; Core is agent-neutral behind `IAgentIntegration` (PLAN §4.1). Pipe protocol is v2 (PLAN §4.2).
+- **Project approval + installer (session 3):** see PLAN §8. The user runs the island for real via `scripts/install-local.ps1` (hooks in their real `~/.claude/settings.json`, intentionally; see CLAUDE.md). While that island runs, a dev `dotnet run` exits at once (single instance) and the smoke scripts refuse to start: quit it from the tray first. A dev build then receives the same live events.
+- `smoke-app-ui` failed once (no button found in 8 s, right after `smoke-app`) and passed on rerun: the background job that runs `simulate` can start slowly. Script timing, not a product bug.
+- Since protocol v2 an old `island-hook.exe` and a new app (or the reverse) do not understand each other; that fails open (silence). Republish both together (`install-local.ps1` does).
 - **WP4 (the visible island) is done.** Session 2 added: `CardPresenter` (Core), the card view-models, `IslandWindow`, `OverlayController`, `--demo`, `scripts/smoke-overlay.ps1`.
 - **Nothing is installed in the user's Claude Code settings.** The installer (WP6) does not exist, so no real Claude Code session reaches the app yet. Next job.
 
@@ -28,18 +32,20 @@ If PowerShell refuses to run a script ("running scripts is disabled"), run it as
 
 ## Map
 ```
-src/Island.Core   hooks/protocol/permissions/sessions (WP1), hub + transport (pipe server/client), usage + milestones (WP5),
-                  overlay: OverlayState (card queue), CardPresenter (all display text + answer JSON), UsageFormat. No UI.
-src/Island.Hook   island-hook.exe forwarder: `hook` (stdin) and `simulate <file> [secs]`. Always exit 0, silent on error.
-src/Island.App    WPF app: App.xaml.cs (single instance, tray, hosts server + hub, flags), debug window (MainWindow),
-                  IslandWindow (the island) + OverlayViewModels + OverlayController + DemoDriver, Theme.xaml, NativeMethods.cs
-tests/            xUnit (189) + tests/fixtures/{hooks,usage} (real, sanitised payloads)
+src/Island.Core        agent-neutral: IAgentIntegration + AgentEvents + PermissionVerdict, sessions, hub + transport,
+                       usage engine (MilestoneEngine, UsageMonitor, PollSchedule), overlay: OverlayState, CardPresenter, UsageFormat. No UI.
+src/Island.ClaudeCode  ClaudeCodeAgent (payload → events, verdict → hook output), ClaudeCodeHook (forwarder side),
+                       HookPayload, PermissionDecision, SuggestionChoice, ToolSummary, Usage/ (OAuth credentials, source, parser)
+src/Island.Hook        island-hook.exe forwarder: `hook` (stdin) and `simulate <file> [secs]`. Always exit 0, silent on error.
+src/Island.App         WPF app: App.xaml.cs (single instance, tray, hosts server + hub, registers the agents, flags), debug window
+                       (MainWindow), IslandWindow (the island) + OverlayViewModels + OverlayController + DemoDriver, Theme.xaml, NativeMethods.cs
+tests/                 Island.Core.Tests (TestAgent), Island.ClaudeCode.Tests + tests/fixtures/{hooks,usage} (real, sanitised payloads)
 scripts/          publish-hook, bench-hook, smoke-app, smoke-app-ui, smoke-overlay, smoke-usage
 ```
-Key flow: Claude Code hook -> `island-hook.exe` -> named pipe `\\.\pipe\claude-code-island-<SID>` -> `IslandServer` -> `IslandHub` -> `SessionStore` (state machine) -> effects -> `OverlayController.OnEffects` -> `OverlayState` -> `OverlayViewModel` -> `IslandWindow`. A PermissionRequest keeps its pipe connection open until `IslandHub.Answer` is called; null means "no decision", so Claude Code shows its own prompt. Usage: `UsageMonitor` -> `OverlayController.OnUsage` (strip + milestone cards).
+Key flow: Claude Code hook -> `island-hook.exe` (`ClaudeCodeHook`) -> named pipe `\\.\pipe\claude-code-island-<SID>` -> `IslandServer` -> `IslandHub` -> `ClaudeCodeAgent.Translate` (neutral `AgentEvent`) -> `SessionStore` (state machine) -> effects -> `OverlayController.OnEffects` -> `OverlayState` -> `OverlayViewModel` -> `IslandWindow`. A permission request keeps its pipe connection open until `IslandHub.Answer(verdict)` is called; the broker asks the owning integration to encode the verdict, and the forwarder prints that text verbatim. A null verdict means "no decision", so Claude Code shows its own prompt. Usage: `UsageMonitor` -> `OverlayController.OnUsage` (strip + milestone cards).
 
 Design notes for the overlay code:
-- Logic lives in Core (`CardPresenter`) because there is no App test project; the view-models only hold values. A card view-model is rebuilt when the card *instance* changes (notices reuse the id `notice:<session>`).
+- Logic lives in Core (`CardPresenter`) because there is no App test project; the view-models only hold values. Agent-specific strings (headline, `$`/`PS>`, "Always Allow (Bash)", the agent chip) come from the integration via `PendingPermission` / the effects' `Agent`. A card view-model is rebuilt when the card *instance* changes (notices reuse the id `notice:<session>`).
 - `--demo` cards have ids starting `demo-`; the controller answers those locally instead of calling the hub.
 - The window is placed at the top-centre of the work area of the monitor holding the foreground window whenever the front card changes.
 
@@ -64,15 +70,16 @@ Settings window, first-run consent for usage polling (today `--poll-usage` stand
 ## Decisions the user made or implied
 - Milestones fire **every 5 %** (5, 10 … 100), once per window; a jump gives one popup for the highest step.
 - Look and layout follow Open Island's (spec in `docs/design.md`); font sizes and layout should be taken from it.
-- Commit by feature and step, **local only, nothing pushed**. Prefer small separate commits.
+- Commit by feature and step; prefer small separate commits. The repo now has a GitHub remote; push only when asked.
+- All agent-specific code goes in its own integration library (session 3); Core stays agent-neutral.
 - Usage polling needs consent; the endpoint is unofficial. The token is read-only: never refresh, never print, never persist.
 - Do not touch the real `~/.claude/settings.json` outside the installer. Do not kill the user's running app.
 
 ## Open questions for the user
 1. **Licence.** Open Island (repo `Octane0411/open-vibe-island`) is GPL v3 and says "fork it, mod it, ship your own version". Reusing its code, `design/` bundles or `Assets/Brand` means this project must be GPL-3.0 too, and its name/logo need the maintainers' say-so. Nothing has been copied (only `demo.gif` was viewed in a scratch folder to compare proportions). Ask which licence for this project.
 2. **Smart App Control is enforced on this machine.** Unsigned binaries get blocked unpredictably (the test DLL once, the app once; the forwarder never). Choices: sign with a trusted certificate (self-signed does not work; Microsoft's Artifact Signing is one route, price and eligibility unverified) or turn SAC off in Windows Security (Microsoft says it can be re-enabled on current Windows; verify). Diagnose blocks in Event Viewer: `Microsoft-Windows-CodeIntegrity/Operational`, events 3076/3077. Decide before WP6 puts the forwarder in the hook path: a blocked forwarder means a silent island.
-3. **Git identity** (see above).
-4. **Scope across projects.** Hooks live in Claude Code settings files: user-level `~/.claude/settings.json` applies to every project; `.claude/settings.json` and `.claude/settings.local.json` in a project folder apply to that project only (general Claude Code knowledge, not yet verified here). The plan installs at **user level**, so every session in every project reaches the one island, distinguished by `session_id` and shown by folder name. To limit it to chosen projects, install into those projects' settings instead, or add a "mute project" setting in WP7 (not built).
+3. ~~Git identity~~ (confirmed).
+4. ~~Scope across projects~~ (decided: user level + per-project Show / Ignore). Original note: Hooks live in Claude Code settings files: user-level `~/.claude/settings.json` applies to every project; `.claude/settings.json` and `.claude/settings.local.json` in a project folder apply to that project only (general Claude Code knowledge, not yet verified here). The plan installs at **user level**, so every session in every project reaches the one island, distinguished by `session_id` and shown by folder name. To limit it to chosen projects, install into those projects' settings instead, or add a "mute project" setting in WP7 (not built).
 
 ## Gotchas learned the hard way
 - Windows PowerShell 5.1 is the default shell: `Set-Content -Encoding utf8` writes a BOM, `Get-Content` misreads UTF-8 without one, `&&` does not exist. `-File script.ps1 -Param 1,2,3` passes ONE string "1,2,3" (not an array): take a string and split it.
