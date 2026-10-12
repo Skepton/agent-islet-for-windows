@@ -37,8 +37,10 @@ src/Island.Core        agent-neutral: IAgentIntegration + AgentEvents + Permissi
 src/Island.ClaudeCode  ClaudeCodeAgent (payload → events, verdict → hook output), ClaudeCodeHook (forwarder side),
                        HookPayload, PermissionDecision, SuggestionChoice, ToolSummary, Usage/ (OAuth credentials, source, parser)
 src/Island.Hook        island-hook.exe forwarder: `hook` (stdin) and `simulate <file> [secs]`. Always exit 0, silent on error.
-src/Island.App         WPF app: App.xaml.cs (single instance, tray, hosts server + hub, registers the agents, flags), debug window
-                       (MainWindow), IslandWindow (the island) + OverlayViewModels + OverlayController + DemoDriver, Theme.xaml, NativeMethods.cs
+src/Island.App         WPF app: App.xaml.cs (single instance, quit signal, tray, hosts server + hub, registers the agents, flags),
+                       PanelWindow + PanelViewModel + ProjectsViewModel (dark control panel: Sessions / Projects / Debug),
+                       IslandWindow (the island + collapsed pill) + OverlayViewModels + OverlayController + DemoDriver,
+                       TrayIconHost (dark menu, left-click = panel), Theme.xaml (shared styles), NativeMethods.cs
 tests/                 Island.Core.Tests (TestAgent), Island.ClaudeCode.Tests + tests/fixtures/{hooks,usage} (real, sanitised payloads)
 scripts/          publish-hook, bench-hook, smoke-app, smoke-app-ui, smoke-overlay, smoke-usage
 ```
@@ -88,7 +90,9 @@ Settings window, first-run consent for usage polling (today `--poll-usage` stand
 - `NamedPipeClientStream.ConnectAsync(timeout)` waits the whole timeout when the pipe is missing (250 ms per hook). `IslandClient` checks `\\.\pipe\` first. Do not remove that.
 - WinForms analyzer WFAC010 rejects manifest DPI settings; the App csproj suppresses it (WPF app, WinForms only for the tray).
 - WPF + WinForms: the csproj removes the implicit `System.Windows.Forms` / `System.Drawing` usings to avoid type clashes. `HttpClient` needs `using System.Net.Http;` in the App. Animation types are in `System.Windows.Media.Animation`.
-- The app process now owns two top-level windows (debug + island): UI Automation scripts must select by title ("Claude Code Island - sessions" vs "Claude Code Island").
+- The app process owns two top-level windows (control panel + island): UI Automation scripts must select by title ("Claude Code Island - panel" vs "Claude Code Island").
+- Smoke scripts refuse to run while the user's installed island runs. Close it with the quit signal (`Local\ClaudeCodeIsland-Quit`, as `install-local.ps1` does), run them, then `install-local.ps1` to restart it. Never kill the process.
+- Benchmarks or `simulate` against the live pipe show up on the user's island (a payload without `cwd` is let through as a session). Point them at a fake pipe with `ISLAND_PIPE_NAME`.
 - Hook payloads: `PreToolUse` fires *before* `PermissionRequest`; `Notification(permission_prompt)` arrives ~6 s after the request and is a duplicate (the store de-duplicates it); a hook-issued deny fires neither `PostToolUse` nor `PermissionDenied`.
 - The usage endpoint's `resets_at` has different fractional seconds on every call; milestone keys round to the minute.
 - `git` warns about LF/CRLF (autocrlf=true). Harmless.

@@ -14,7 +14,9 @@ Inspired by [Open Island](https://github.com/Octane0411/open-vibe-island) for ma
 - **Usage.** Your 5-hour and 7-day limits as a slim strip, plus a popup every 5 % (opt-in, see Privacy).
 - **Several sessions at once.** Cards from every session queue up ("1 of 3"), urgent ones first, labelled by project folder.
 
-The island never takes keyboard focus, so it won't interrupt what you're typing.
+The island never takes keyboard focus, so it won't interrupt what you're typing. After a few seconds a waiting card shrinks to a small black pill with a count; hover over it or click it to open it again.
+
+**Control panel.** Click the tray icon for a dark panel in the same style: every session and its status (answer waiting requests there too), the projects you chose to show or ignore, and a debug log.
 
 ## Status
 
@@ -28,7 +30,7 @@ powershell -File scripts\install-local.ps1               # add -PollUsage to tur
 
 This builds the island into `%LOCALAPPDATA%\ClaudeCodeIsland`, adds its hooks to Claude Code's user settings (`~/.claude/settings.json`, backed up first, nothing else touched) and starts it in the tray. Already-running Claude Code sessions pick it up on their next event.
 
-**You choose which projects show up.** The first time a session from a new folder reaches the island, it asks: *New project: my-app — Ignore / Show*. Until you answer, that project is left alone. Change your mind any time under tray icon → **Settings...**, where every project is listed with **Show**, **Ignore** and **Forget**.
+**You choose which projects show up.** The first time a session from a new folder reaches the island, it asks: *New project: my-app — Ignore / Show*. Until you answer, that project is left alone. Change your mind any time in the control panel's **Projects** tab (click the tray icon), where every project is listed with **Show**, **Ignore** and **Forget**.
 
 To remove the hooks again: `powershell -File scripts\install-local.ps1 -Uninstall`.
 
