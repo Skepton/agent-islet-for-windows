@@ -132,6 +132,57 @@ public class CardPresenterTests
     }
 
     [Fact]
+    public void Deny_and_allow_answers_build_the_decision_objects()
+    {
+        var card = Permission();
+        var actions = CardPresenter.Present(card, T0).Actions;
+
+        var deny = CardPresenter.Answer(card, actions[0]);
+        var allow = CardPresenter.Answer(card, actions[1]);
+
+        Assert.Contains("\"behavior\":\"deny\"", deny.DecisionJson);
+        Assert.Equal(PermissionOutcome.Answered, deny.Outcome);
+        Assert.Equal(PermissionDecision.Allow(), allow.DecisionJson);
+        Assert.Equal(PermissionOutcome.Answered, allow.Outcome);
+    }
+
+    [Fact]
+    public void Remember_answer_echoes_the_raw_suggestion_back()
+    {
+        var card = Permission(suggestions: new[] { AddRules, AddDirectories });
+        var actions = CardPresenter.Present(card, T0).Actions;
+
+        var answer = CardPresenter.Answer(card, actions[3]);
+
+        Assert.Equal(PermissionDecision.Allow(new[] { AddDirectories }), answer.DecisionJson);
+        Assert.Contains("updatedPermissions", answer.DecisionJson);
+    }
+
+    [Fact]
+    public void Answer_in_terminal_sends_no_decision()
+    {
+        var answer = CardPresenter.AnswerInTerminal(Permission());
+
+        Assert.Null(answer.DecisionJson);
+        Assert.Equal(PermissionOutcome.DeferredToTerminal, answer.Outcome);
+    }
+
+    [Fact]
+    public void Strip_lists_5h_before_7d_with_rounded_percent_and_countdown()
+    {
+        var snapshot = new UsageSnapshot(T0, new[]
+        {
+            new UsageWindow(UsageWindowId.SevenDay, 55.4, T0.AddDays(2).AddHours(3)),
+            new UsageWindow(UsageWindowId.FiveHour, 71.6, T0.AddHours(1).AddMinutes(10)),
+        });
+
+        var strip = CardPresenter.PresentStrip(snapshot, T0);
+
+        Assert.Equal(new UsageStripItem("5h", "72%", 1, "1h 10m"), strip[0]);
+        Assert.Equal(new UsageStripItem("7d", "55%", 0, "2d"), strip[1]);
+    }
+
+    [Fact]
     public void Finished_notice_is_marked_done()
     {
         var card = new NoticeCard

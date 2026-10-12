@@ -34,6 +34,13 @@ public sealed record NoticeCardText(
 /// <param name="Level">See <see cref="UsageFormat.Level"/>.</param>
 public sealed record UsageCardText(string Title, double Percent, int Level, string ResetsText);
 
+/// <param name="DecisionJson">Decision object for <c>IslandHub.Answer</c>; null means "no decision, answer in the terminal".</param>
+/// <param name="Log">One line for the debug log describing what is being sent.</param>
+public sealed record PermissionAnswer(string? DecisionJson, PermissionOutcome Outcome, string Log);
+
+/// <param name="Level">See <see cref="UsageFormat.Level"/>.</param>
+public sealed record UsageStripItem(string Label, string PercentText, int Level, string Countdown);
+
 /// <summary>Turns overlay cards into the exact strings the window shows, so the WPF side only binds.</summary>
 public static class CardPresenter
 {
@@ -88,6 +95,38 @@ public static class CardPresenter
             UsageFormat.Level(percent),
             "resets " + resets.ToString(format, CultureInfo.CurrentCulture));
     }
+
+    /// <summary>The 5h and 7d readings for the strip at the top of the island, in that order.</summary>
+    public static IReadOnlyList<UsageStripItem> PresentStrip(UsageSnapshot snapshot, DateTimeOffset now) =>
+        snapshot.Windows
+            .OrderBy(w => w.Id)
+            .Select(w => new UsageStripItem(
+                UsageFormat.WindowLabel(w.Id),
+                $"{Math.Round(Math.Clamp(w.Percent, 0, 100)):0}%",
+                UsageFormat.Level(w.Percent),
+                UsageFormat.Countdown(w.ResetsAt - now)))
+            .ToList();
+
+    /// <summary>What a click on <paramref name="action"/> sends to Claude Code.</summary>
+    public static PermissionAnswer Answer(PermissionCard card, PermissionAction action)
+    {
+        var tool = card.Permission.ToolName;
+        switch (action.Kind)
+        {
+            case PermissionActionKind.Deny:
+                return new PermissionAnswer(
+                    PermissionDecision.Deny("Denied from Claude Code Island"), PermissionOutcome.Answered, $"{tool}: deny");
+            case PermissionActionKind.Remember when action.SuggestionIndex >= 0 && action.SuggestionIndex < card.Permission.Suggestions.Count:
+                var raw = card.Permission.Suggestions[action.SuggestionIndex].RawJson;
+                return new PermissionAnswer(
+                    PermissionDecision.Allow(new[] { raw }), PermissionOutcome.Answered, $"{tool}: allow, sending update to Claude Code: {raw}");
+            default:
+                return new PermissionAnswer(PermissionDecision.Allow(), PermissionOutcome.Answered, $"{tool}: allow");
+        }
+    }
+
+    public static PermissionAnswer AnswerInTerminal(PermissionCard card) =>
+        new(null, PermissionOutcome.DeferredToTerminal, $"{card.Permission.ToolName}: no decision, answer in terminal");
 
     /// <summary>The label for a "remember" button. <paramref name="fallbackTool"/> names the tool when the rule itself doesn't.</summary>
     public static string SuggestionLabel(SuggestionChoice choice, string fallbackTool) => choice.Type switch
