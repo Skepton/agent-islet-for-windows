@@ -213,9 +213,9 @@
 
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,4,0,0"
                         Visibility="{Binding HasPager, Converter={StaticResource BoolToVisibility}}">
-                <Button Content="‹" Command="{Binding Previous}" Style="{StaticResource LinkButton}" />
-                <TextBlock Text="{Binding PagerText}" Style="{StaticResource SecondaryText}" VerticalAlignment="Center" Margin="4,0" />
-                <Button Content="›" Command="{Binding Next}" Style="{StaticResource LinkButton}" />
+                <Button Content="‹" Command="{Binding Previous}" Style="{StaticResource LinkButton}" FontSize="16" />
+                <TextBlock Text="{Binding PagerText}" Style="{StaticResource SecondaryText}" VerticalAlignment="Center" Margin="6,0" />
+                <Button Content="›" Command="{Binding Next}" Style="{StaticResource LinkButton}" FontSize="16" />
             </StackPanel>
 
             <Button Content="{Binding FooterText}" Command="{Binding ShowAll}" Style="{StaticResource LinkButton}"

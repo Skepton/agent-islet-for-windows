@@ -15,6 +15,7 @@
     <SolidColorBrush x:Key="NeutralButtonBrush" Color="#22272D" />
     <SolidColorBrush x:Key="CommandBoxBrush" Color="#15120A" />
     <SolidColorBrush x:Key="ChipBrush" Color="#1E2128" />
+    <SolidColorBrush x:Key="ScrollThumbBrush" Color="#4A4F58" />
     <SolidColorBrush x:Key="LevelGreenBrush" Color="#6FBF4A" />
     <SolidColorBrush x:Key="LevelAmberBrush" Color="#E5B13A" />
     <SolidColorBrush x:Key="LevelRedBrush" Color="#D8493A" />
@@ -119,7 +120,7 @@
                             <Thumb>
                                 <Thumb.Template>
                                     <ControlTemplate TargetType="Thumb">
-                                        <Border Background="{StaticResource NeutralButtonBrush}" CornerRadius="3" />
+                                        <Border Background="{StaticResource ScrollThumbBrush}" CornerRadius="3" />
                                     </ControlTemplate>
                                 </Thumb.Template>
                             </Thumb>
