@@ -1,13 +1,18 @@
 using System.Text;
 using Island.ClaudeCode;
 using Island.Core;
+using Island.Hook;
 
 // island-hook hook                      Claude Code hook: reads the event JSON on stdin.
 // island-hook simulate <file> [secs]    Developer aid: replays a saved Claude Code payload through the pipe.
+// island-hook install|uninstall [--settings <path>] [--dry-run]
+//                                       Adds/removes the hooks in Claude Code's settings (see SetupCommand).
 //
-// Fail-open contract: always exits 0. Any error (app not running, bad input, deadline)
+// Fail-open contract for hook/simulate: always exits 0. Any error (app not running, bad input, deadline)
 // means silence on stdout, which Claude Code treats as "no decision".
-// Another agent would get its own subcommand here, backed by its own integration library.
+// Another agent would get its own subcommands here, backed by its own integration library.
+
+if (args is ["install", ..] or ["uninstall", ..]) return SetupCommand.Run(args);
 
 try
 {
