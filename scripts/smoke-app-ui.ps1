@@ -60,8 +60,11 @@ try {
     $window = $null
     $deadline = (Get-Date).AddSeconds(10)
     while (-not $window -and (Get-Date) -lt $deadline) {
+        # The process also owns the island overlay window, so pick the debug window by its title.
         $window = [Windows.Automation.AutomationElement]::RootElement.FindFirst([Windows.Automation.TreeScope]::Children,
-            (New-Object Windows.Automation.PropertyCondition([Windows.Automation.AutomationElement]::ProcessIdProperty, $proc.Id)))
+            (New-Object Windows.Automation.AndCondition(
+                (New-Object Windows.Automation.PropertyCondition([Windows.Automation.AutomationElement]::ProcessIdProperty, $proc.Id)),
+                (New-Object Windows.Automation.PropertyCondition([Windows.Automation.AutomationElement]::NameProperty, 'Claude Code Island - sessions')))))
         if (-not $window) { Start-Sleep -Milliseconds 150 }
     }
     Check 'debug window is shown' ($null -ne $window)
