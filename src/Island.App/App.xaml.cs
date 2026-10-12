@@ -13,6 +13,8 @@ public partial class App : Application
     private TrayIconHost? _tray;
     private DebugViewModel? _viewModel;
     private MainWindow? _window;
+    private OverlayController? _overlay;
+    private DemoDriver? _demo;
     private HttpClient? _http;
     private UsageMonitor? _usage;
     private bool _cleanedUp;
@@ -46,10 +48,15 @@ public partial class App : Application
         var hub = new IslandHub(
             new SessionStore(),
             new PermissionBroker(),
-            effects => Dispatcher.InvokeAsync(() => _viewModel?.Apply(effects)));
+            effects => Dispatcher.InvokeAsync(() =>
+            {
+                _viewModel?.Apply(effects);
+                _overlay?.OnEffects(effects);
+            }));
 
         _viewModel = new DebugViewModel(hub);
         _window = new MainWindow(_viewModel);
+        _overlay = new OverlayController(hub, _viewModel.LogLine, ShowWindow);
         _tray = new TrayIconHost(ShowWindow, Quit);
 
         _shutdown = new CancellationTokenSource();
@@ -74,6 +81,13 @@ public partial class App : Application
         _pruneTimer.Tick += (_, _) => hub.Prune();
         _pruneTimer.Start();
 
+        _overlay.Start();
+        if (e.Args.Contains("--demo"))
+        {
+            _demo = new DemoDriver(_overlay);
+            _demo.Start();
+        }
+
         if (!e.Args.Contains("--tray")) ShowWindow();
     }
 
@@ -96,7 +110,11 @@ public partial class App : Application
 
         _http = new HttpClient();
         var source = new OAuthUsageSource(_http, new OAuthCredentialsReader());
-        _usage = new UsageMonitor(source, engine, update => Dispatcher.InvokeAsync(() => _viewModel?.ApplyUsage(update)), store);
+        _usage = new UsageMonitor(source, engine, update => Dispatcher.InvokeAsync(() =>
+        {
+            _viewModel?.ApplyUsage(update);
+            _overlay?.OnUsage(update);
+        }), store);
 
         _ = _usage.RunAsync(shutdown);
     }
@@ -132,6 +150,8 @@ public partial class App : Application
         _shutdown?.Cancel();
         _http?.Dispose();
         _pruneTimer?.Stop();
+        _demo?.Stop();
+        _overlay?.Dispose();
         _tray?.Dispose();
         _window?.ReallyClose();
 

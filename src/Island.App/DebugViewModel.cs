@@ -56,7 +56,7 @@ public sealed class DebugViewModel : INotifyPropertyChanged
 
     public void Apply(IReadOnlyList<StoreEffect> effects)
     {
-        foreach (var effect in effects) Log(Describe(effect));
+        foreach (var effect in effects) LogLine(Describe(effect));
         Refresh();
     }
 
@@ -64,7 +64,7 @@ public sealed class DebugViewModel : INotifyPropertyChanged
     {
         foreach (var milestone in update.Milestones)
         {
-            Log($"usage milestone    {WindowLabel(milestone.Window)} reached {milestone.Threshold}% (now {milestone.Percent:0.#}%)");
+            LogLine($"usage milestone    {WindowLabel(milestone.Window)} reached {milestone.Threshold}% (now {milestone.Percent:0.#}%)");
         }
         UsageText = DescribeUsage(update);
     }
@@ -88,7 +88,7 @@ public sealed class DebugViewModel : INotifyPropertyChanged
         }
     }
 
-    private void Log(string text)
+    public void LogLine(string text)
     {
         Events.Insert(0, $"{DateTime.Now:HH:mm:ss}  {text}");
         while (Events.Count > MaxEvents) Events.RemoveAt(Events.Count - 1);
@@ -118,7 +118,7 @@ public sealed class DebugViewModel : INotifyPropertyChanged
     /// <summary>Sends the decision to the waiting forwarder and records what was sent, so a click is never silent.</summary>
     private void Answer(SessionInfo session, PendingPermission pending, string what, string? decisionJson, PermissionOutcome outcome)
     {
-        Log($"answered           {session.DisplayName}  {pending.ToolName}: {what}");
+        LogLine($"answered           {session.DisplayName}  {pending.ToolName}: {what}");
         _hub.Answer(pending.RequestId, decisionJson, outcome);
     }
 

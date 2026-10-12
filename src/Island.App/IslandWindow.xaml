@@ -1,0 +1,226 @@
+<Window x:Class="Island.App.IslandWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:Island.App"
+        Title="Claude Code Island"
+        WindowStyle="None" AllowsTransparency="True" Background="Transparent"
+        Topmost="True" ShowInTaskbar="False" ShowActivated="False" ResizeMode="NoResize"
+        SizeToContent="Height" Width="480" Focusable="False"
+        FontFamily="{StaticResource UiFont}" UseLayoutRounding="True" SnapsToDevicePixels="True">
+
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
+
+        <!-- Percentages in the strip and on usage cards: green, amber, red as usage climbs. -->
+        <Style x:Key="LevelText" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{StaticResource LevelGreenBrush}" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding Level}" Value="1">
+                    <Setter Property="Foreground" Value="{StaticResource LevelAmberBrush}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Level}" Value="2">
+                    <Setter Property="Foreground" Value="{StaticResource LevelRedBrush}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="LevelBar" TargetType="ProgressBar" BasedOn="{StaticResource LevelProgress}">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding Level}" Value="1">
+                    <Setter Property="Foreground" Value="{StaticResource LevelAmberBrush}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Level}" Value="2">
+                    <Setter Property="Foreground" Value="{StaticResource LevelRedBrush}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="StatusDot" TargetType="Ellipse">
+            <Setter Property="Width" Value="9" />
+            <Setter Property="Height" Value="9" />
+            <Setter Property="Margin" Value="0,0,8,0" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Fill" Value="{StaticResource AccentBrush}" />
+        </Style>
+
+        <Style x:Key="ChipBorder" TargetType="Border">
+            <Setter Property="Background" Value="{StaticResource ChipBrush}" />
+            <Setter Property="CornerRadius" Value="9" />
+            <Setter Property="Padding" Value="7,2" />
+            <Setter Property="Margin" Value="4,0,0,0" />
+        </Style>
+
+        <!-- Button colours by kind: No = neutral, Yes = orange, remember = red. -->
+        <Style x:Key="ActionButtonStyle" TargetType="Button" BasedOn="{StaticResource IslandButton}">
+            <Setter Property="Margin" Value="3,0" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding Kind}" Value="Allow">
+                    <Setter Property="Background" Value="{StaticResource AccentBrush}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Kind}" Value="Remember">
+                    <Setter Property="Background" Value="{StaticResource DangerBrush}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <DataTemplate x:Key="ChipTemplate">
+            <Border Style="{StaticResource ChipBorder}">
+                <TextBlock Text="{Binding}" Style="{StaticResource ChipText}" />
+            </Border>
+        </DataTemplate>
+
+        <!-- Permission request -->
+        <DataTemplate DataType="{x:Type local:PermissionCardViewModel}">
+            <Border Style="{StaticResource CardBorder}">
+                <StackPanel>
+                    <DockPanel LastChildFill="True">
+                        <ItemsControl DockPanel.Dock="Right" ItemsSource="{Binding Chips}" ItemTemplate="{StaticResource ChipTemplate}"
+                                      VerticalAlignment="Center" Focusable="False">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate><StackPanel Orientation="Horizontal" /></ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                        </ItemsControl>
+                        <Ellipse DockPanel.Dock="Left" Style="{StaticResource StatusDot}" />
+                        <TextBlock Text="{Binding Title}" Style="{StaticResource TitleText}" VerticalAlignment="Center" />
+                    </DockPanel>
+
+                    <TextBlock Text="{Binding YouLine}" Style="{StaticResource SecondaryText}" Margin="17,5,0,0"
+                               Visibility="{Binding HasYouLine, Converter={StaticResource BoolToVisibility}}" />
+                    <TextBlock Text="{Binding AttentionLine}" Style="{StaticResource AccentText}" Margin="17,3,0,0" />
+
+                    <StackPanel Orientation="Horizontal" Margin="17,8,0,4">
+                        <TextBlock Text="⚠" FontSize="12" Foreground="{StaticResource AccentBrush}" Margin="0,0,5,0" />
+                        <TextBlock Text="{Binding ToolLabel}" FontSize="12" FontWeight="SemiBold"
+                                   Foreground="{StaticResource AccentBrush}" />
+                    </StackPanel>
+
+                    <Border Background="{StaticResource CommandBoxBrush}" CornerRadius="10" Padding="10" Margin="0,0,0,10">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource MonoCommand}" MaxHeight="96" TextTrimming="CharacterEllipsis">
+                                <Run Text="{Binding CommandPrefix, Mode=OneWay}" Foreground="{StaticResource TextSecondaryBrush}" /><Run Text="{Binding Command, Mode=OneWay}" />
+                            </TextBlock>
+                            <TextBlock Text="{Binding Description}" FontSize="10" Foreground="{StaticResource TextSecondaryBrush}"
+                                       TextWrapping="Wrap" Margin="0,3,0,0"
+                                       Visibility="{Binding HasDescription, Converter={StaticResource BoolToVisibility}}" />
+                        </StackPanel>
+                    </Border>
+
+                    <ItemsControl ItemsSource="{Binding Buttons}" Focusable="False">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate><UniformGrid Rows="1" /></ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Button Content="{Binding Label}" Command="{Binding Command}" Style="{StaticResource ActionButtonStyle}" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <Button Content="Answer in terminal" Command="{Binding AnswerInTerminal}" Style="{StaticResource LinkButton}"
+                            HorizontalAlignment="Center" Margin="0,6,0,0" />
+                </StackPanel>
+            </Border>
+        </DataTemplate>
+
+        <!-- Needs input / finished -->
+        <DataTemplate DataType="{x:Type local:NoticeCardViewModel}">
+            <Border Style="{StaticResource CardBorder}">
+                <StackPanel>
+                    <DockPanel LastChildFill="True">
+                        <ItemsControl DockPanel.Dock="Right" ItemsSource="{Binding Chips}" ItemTemplate="{StaticResource ChipTemplate}"
+                                      VerticalAlignment="Center" Focusable="False">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate><StackPanel Orientation="Horizontal" /></ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                        </ItemsControl>
+                        <Ellipse DockPanel.Dock="Left">
+                            <Ellipse.Style>
+                                <Style TargetType="Ellipse" BasedOn="{StaticResource StatusDot}">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsDone}" Value="True">
+                                            <Setter Property="Fill" Value="{StaticResource DoneBrush}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Ellipse.Style>
+                        </Ellipse>
+                        <TextBlock Text="{Binding Title}" Style="{StaticResource TitleText}" VerticalAlignment="Center" />
+                    </DockPanel>
+
+                    <DockPanel Margin="17,5,0,0" LastChildFill="True"
+                               Visibility="{Binding HasYouLine, Converter={StaticResource BoolToVisibility}}">
+                        <TextBlock DockPanel.Dock="Right" Text="Done" FontSize="11" FontWeight="SemiBold" Margin="8,0,0,0"
+                                   Foreground="{StaticResource DoneBrush}"
+                                   Visibility="{Binding IsDone, Converter={StaticResource BoolToVisibility}}" />
+                        <TextBlock Text="{Binding YouLine}" Style="{StaticResource SecondaryText}" />
+                    </DockPanel>
+
+                    <ScrollViewer MaxHeight="100" VerticalScrollBarVisibility="Auto" Focusable="False" Margin="17,5,0,0">
+                        <TextBlock Text="{Binding Body}" FontSize="11.5" TextWrapping="Wrap"
+                                   Foreground="{StaticResource TextPrimaryBrush}" />
+                    </ScrollViewer>
+
+                    <Button Content="Dismiss" Command="{Binding Dismiss}" Style="{StaticResource LinkButton}"
+                            HorizontalAlignment="Right" Margin="0,6,0,0" />
+                </StackPanel>
+            </Border>
+        </DataTemplate>
+
+        <!-- Usage milestone -->
+        <DataTemplate DataType="{x:Type local:UsageCardViewModel}">
+            <Border Style="{StaticResource CardBorder}">
+                <StackPanel>
+                    <DockPanel LastChildFill="True">
+                        <Button DockPanel.Dock="Right" Content="✕" Command="{Binding Dismiss}" Style="{StaticResource LinkButton}" />
+                        <TextBlock Text="{Binding Title}" Style="{StaticResource LevelText}" FontSize="13" VerticalAlignment="Center" />
+                    </DockPanel>
+                    <ProgressBar Value="{Binding Percent, Mode=OneWay}" Style="{StaticResource LevelBar}" Margin="0,8,0,6" />
+                    <TextBlock Text="{Binding ResetsText}" Style="{StaticResource SecondaryText}" />
+                </StackPanel>
+            </Border>
+        </DataTemplate>
+    </Window.Resources>
+
+    <Border x:Name="Panel" Background="{StaticResource IslandBlackBrush}" CornerRadius="0,0,20,20" Opacity="0">
+        <Border.RenderTransform>
+            <TranslateTransform x:Name="Slide" />
+        </Border.RenderTransform>
+
+        <StackPanel Margin="10,0,10,10">
+            <!-- Usage strip: first row, and the whole island when nothing needs you. -->
+            <StackPanel Orientation="Horizontal" Margin="6,8,6,6"
+                        Visibility="{Binding HasStrip, Converter={StaticResource BoolToVisibility}}">
+            <TextBlock Text="Claude" Style="{StaticResource SecondaryText}" FontWeight="SemiBold" Margin="0,0,14,0" />
+            <ItemsControl ItemsSource="{Binding Strip}" Focusable="False">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate><StackPanel Orientation="Horizontal" /></ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,16,0">
+                            <TextBlock Text="{Binding Label}" Style="{StaticResource SecondaryText}" Margin="0,0,5,0" />
+                            <TextBlock Text="{Binding PercentText}" Style="{StaticResource LevelText}" Margin="0,0,6,0" />
+                            <TextBlock Text="{Binding Countdown}" Style="{StaticResource SecondaryText}" />
+                        </StackPanel>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+            </StackPanel>
+
+            <ContentControl Content="{Binding Current}" Focusable="False" IsTabStop="False" />
+
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,4,0,0"
+                        Visibility="{Binding HasPager, Converter={StaticResource BoolToVisibility}}">
+                <Button Content="‹" Command="{Binding Previous}" Style="{StaticResource LinkButton}" />
+                <TextBlock Text="{Binding PagerText}" Style="{StaticResource SecondaryText}" VerticalAlignment="Center" Margin="4,0" />
+                <Button Content="›" Command="{Binding Next}" Style="{StaticResource LinkButton}" />
+            </StackPanel>
+
+            <Button Content="{Binding FooterText}" Command="{Binding ShowAll}" Style="{StaticResource LinkButton}"
+                    HorizontalAlignment="Center" Margin="0,2,0,0"
+                    Visibility="{Binding HasFooter, Converter={StaticResource BoolToVisibility}}" />
+        </StackPanel>
+    </Border>
+</Window>
