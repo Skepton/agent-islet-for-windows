@@ -141,6 +141,119 @@
         <Setter Property="Padding" Value="11" />
     </Style>
 
+    <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
+
+    <!-- Shared by the island and the control panel. -->
+    <Style x:Key="StatusDot" TargetType="Ellipse">
+        <Setter Property="Width" Value="9" />
+        <Setter Property="Height" Value="9" />
+        <Setter Property="Margin" Value="0,0,8,0" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="Fill" Value="{StaticResource AccentBrush}" />
+    </Style>
+
+    <Style x:Key="ChipBorder" TargetType="Border">
+        <Setter Property="Background" Value="{StaticResource ChipBrush}" />
+        <Setter Property="CornerRadius" Value="9" />
+        <Setter Property="Padding" Value="7,2" />
+        <Setter Property="Margin" Value="4,0,0,0" />
+    </Style>
+
+    <DataTemplate x:Key="ChipTemplate">
+        <Border Style="{StaticResource ChipBorder}">
+            <TextBlock Text="{Binding}" Style="{StaticResource ChipText}" />
+        </Border>
+    </DataTemplate>
+
+    <!-- Button colours by kind: No = neutral, Yes = orange, remember = red. -->
+    <Style x:Key="ActionButtonStyle" TargetType="Button" BasedOn="{StaticResource IslandButton}">
+        <Setter Property="Margin" Value="3,0" />
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding Kind}" Value="Allow">
+                <Setter Property="Background" Value="{StaticResource AccentBrush}" />
+            </DataTrigger>
+            <DataTrigger Binding="{Binding Kind}" Value="Remember">
+                <Setter Property="Background" Value="{StaticResource DangerBrush}" />
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+
+    <!-- Control panel: same palette as the island, one shade lighter for the content area so cards stand out. -->
+    <SolidColorBrush x:Key="PanelBackgroundBrush" Color="#0B0B0D" />
+    <SolidColorBrush x:Key="PanelCardBrush" Color="#121317" />
+    <SolidColorBrush x:Key="NavSelectedBrush" Color="#1E2128" />
+
+    <Style x:Key="PageTitle" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="18" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+    </Style>
+
+    <Style x:Key="BodyText" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+
+    <!-- Left-hand tab in the panel: a radio button that looks like a rounded row, with an orange bar when selected. -->
+    <Style x:Key="NavButton" TargetType="RadioButton">
+        <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="Height" Value="34" />
+        <Setter Property="Margin" Value="0,0,0,2" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="RadioButton">
+                    <Border x:Name="Surface" Background="Transparent" CornerRadius="8">
+                        <Grid>
+                            <Border x:Name="Bar" Width="3" Height="16" CornerRadius="1.5" HorizontalAlignment="Left"
+                                    Background="{StaticResource AccentBrush}" Visibility="Collapsed" Margin="2,0,0,0" />
+                            <ContentPresenter Margin="14,0,10,0" VerticalAlignment="Center" />
+                        </Grid>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Surface" Property="Background" Value="#14161A" />
+                            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="Surface" Property="Background" Value="{StaticResource NavSelectedBrush}" />
+                            <Setter TargetName="Bar" Property="Visibility" Value="Visible" />
+                            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Minimise / close in the panel's own title bar. -->
+    <Style x:Key="CaptionButton" TargetType="Button">
+        <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
+        <Setter Property="FontFamily" Value="Segoe Fluent Icons, Segoe MDL2 Assets" />
+        <Setter Property="FontSize" Value="10" />
+        <Setter Property="Width" Value="44" />
+        <Setter Property="Height" Value="32" />
+        <Setter Property="Focusable" Value="False" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Surface" Background="Transparent" CornerRadius="6">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Surface" Property="Background" Value="{StaticResource NavSelectedBrush}" />
+                            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <Style x:Key="LevelProgress" TargetType="ProgressBar">
         <Setter Property="Height" Value="6" />
         <Setter Property="Minimum" Value="0" />

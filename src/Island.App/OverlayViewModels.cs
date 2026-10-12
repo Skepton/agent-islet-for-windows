@@ -37,6 +37,9 @@ public abstract class CardViewModel(OverlayCard source) : ObservableObject
 /// <summary>A permission request: header, command box and the No / Yes / remember buttons.</summary>
 public sealed class PermissionCardViewModel : CardViewModel
 {
+    /// <summary>The island has room for one "Always Allow"; the panel lists every option.</summary>
+    public const int IslandRememberButtons = 1;
+
     private readonly PermissionCard _card;
     private IReadOnlyList<string> _chips = Array.Empty<string>();
 
@@ -46,7 +49,7 @@ public sealed class PermissionCardViewModel : CardViewModel
         Action<PermissionCard, PermissionAnswer> answer) : base(card)
     {
         _card = card;
-        var text = CardPresenter.Present(card, now);
+        var text = CardPresenter.Present(card, now, IslandRememberButtons);
         Title = text.Title;
         YouLine = text.YouLine;
         AttentionLine = text.AttentionLine;
@@ -81,7 +84,7 @@ public sealed class PermissionCardViewModel : CardViewModel
         private set => Set(ref _chips, value);
     }
 
-    public override void Update(DateTimeOffset now) => Chips = CardPresenter.Present(_card, now).Chips;
+    public override void Update(DateTimeOffset now) => Chips = CardPresenter.Present(_card, now, IslandRememberButtons).Chips;
 }
 
 /// <summary>"Needs input" and "Finished" cards.</summary>
@@ -170,16 +173,41 @@ public sealed class OverlayViewModel : ObservableObject
     private bool _hasStrip;
     private UsageSnapshot? _usage;
 
-    public OverlayViewModel(Action previous, Action next, Action showAll)
+    private bool _isCollapsed;
+    private string _pillText = "";
+
+    public OverlayViewModel(Action previous, Action next, Action showAll, Action expand)
     {
         Previous = new RelayCommand(previous);
         Next = new RelayCommand(next);
         ShowAll = new RelayCommand(showAll);
+        Expand = new RelayCommand(expand);
     }
 
     public ICommand Previous { get; }
     public ICommand Next { get; }
     public ICommand ShowAll { get; }
+    public ICommand Expand { get; }
+
+    /// <summary>True while the island is shrunk to the small pill (something still waits, but the user has not looked for a while).</summary>
+    public bool IsCollapsed
+    {
+        get => _isCollapsed;
+        set
+        {
+            if (!Set(ref _isCollapsed, value)) return;
+            Raise(nameof(IsExpanded));
+        }
+    }
+
+    public bool IsExpanded => !IsCollapsed;
+
+    /// <summary>The pill's count of cards that still need the user.</summary>
+    public string PillText
+    {
+        get => _pillText;
+        private set => Set(ref _pillText, value);
+    }
 
     public ObservableCollection<UsageStripItem> Strip { get; } = new();
 
@@ -252,6 +280,7 @@ public sealed class OverlayViewModel : ObservableObject
 
         HasPager = snapshot.Cards.Count > 1;
         PagerText = HasPager ? $"{snapshot.Index + 1} of {snapshot.Cards.Count}" : "";
+        PillText = snapshot.Cards.Count(c => IslandCollapse.IsWaiting(c.Kind)).ToString();
         HasFooter = sessionCount > 1;
         FooterText = HasFooter ? $"Show all {sessionCount} sessions" : "";
         RefreshStrip(now);

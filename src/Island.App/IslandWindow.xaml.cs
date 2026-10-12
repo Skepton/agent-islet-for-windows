@@ -86,7 +86,7 @@ public partial class IslandWindow : Window
         PlaceAtTop();
 
         UpdateLayout();
-        Animate(fromY: -(Panel.ActualHeight + 4), toY: 0, fromOpacity: 0, toOpacity: 1, onCompleted: null);
+        Animate(fromY: -(Root.ActualHeight + 4), toY: 0, fromOpacity: 0, toOpacity: 1, onCompleted: null);
     }
 
     /// <summary>Retracts the island and hides the window afterwards (unless something showed it again meanwhile).</summary>
@@ -95,7 +95,7 @@ public partial class IslandWindow : Window
         if (!_shown) return;
         _shown = false;
 
-        Animate(fromY: 0, toY: -(Panel.ActualHeight + 4), fromOpacity: 1, toOpacity: 0, onCompleted: () =>
+        Animate(fromY: 0, toY: -(Root.ActualHeight + 4), fromOpacity: 1, toOpacity: 0, onCompleted: () =>
         {
             if (!_shown) Hide();
         });
@@ -108,6 +108,6 @@ public partial class IslandWindow : Window
         if (onCompleted is not null) fade.Completed += (_, _) => onCompleted();
 
         Slide.BeginAnimation(TranslateTransform.YProperty, slide);
-        Panel.BeginAnimation(OpacityProperty, fade);
+        Root.BeginAnimation(OpacityProperty, fade);
     }
 }

@@ -24,8 +24,10 @@ public sealed class OverlayController : IDisposable
     private readonly DispatcherTimer _tick;
     private readonly DispatcherTimer _fullScreenCheck;
     private DateTimeOffset _lastRefresh = DateTimeOffset.MinValue;
+    private DateTimeOffset _openSince = DateTimeOffset.UtcNow;
     private string? _placedFor;
     private bool _suppressed;
+    private bool _pointerOver;
 
     public OverlayController(IslandHub hub, Action<string> log, Action showAll)
     {
@@ -35,8 +37,21 @@ public sealed class OverlayController : IDisposable
         _viewModel = new OverlayViewModel(
             previous: () => { _state.Previous(); Refresh(); },
             next: () => { _state.Next(); Refresh(); },
-            showAll: showAll);
+            showAll: showAll,
+            expand: () => { Expand(); Refresh(); });
         _window = new IslandWindow(_viewModel);
+
+        // Hovering opens the pill; leaving lets the island shrink back a little sooner than a fresh card would.
+        _window.MouseEnter += (_, _) =>
+        {
+            _pointerOver = true;
+            if (_viewModel.IsCollapsed) { Expand(); Refresh(); }
+        };
+        _window.MouseLeave += (_, _) =>
+        {
+            _pointerOver = false;
+            _openSince = DateTimeOffset.UtcNow - (IslandCollapse.After - IslandCollapse.AfterHover);
+        };
 
         _tick = new DispatcherTimer { Interval = TickInterval };
         _tick.Tick += (_, _) => OnTick();
@@ -103,13 +118,21 @@ public sealed class OverlayController : IDisposable
         }
 
         // Re-place when the front card changes, so the island follows the window the user is working in.
+        // A new front card always opens fully, even when the island had shrunk to its pill.
         var key = snapshot.Current?.Id ?? "";
         if (_placedFor != key)
         {
             _placedFor = key;
+            Expand();
             _window.PlaceAtTop();
         }
         _window.SlideIn();
+    }
+
+    private void Expand()
+    {
+        _viewModel.IsCollapsed = false;
+        _openSince = DateTimeOffset.UtcNow;
     }
 
     private CardViewModel Create(OverlayCard card, DateTimeOffset now) => card switch
@@ -162,6 +185,18 @@ public sealed class OverlayController : IDisposable
     {
         var now = DateTimeOffset.UtcNow;
         if (_state.Tick(now) || now - _lastRefresh >= RelativeTimeRefresh) Refresh();
+
+        var snapshot = _state.Snapshot();
+        if (_viewModel.IsCollapsed && (snapshot.Current is null || !IslandCollapse.IsWaiting(snapshot.Current.Kind)))
+        {
+            Expand(); // nothing waits any more (e.g. only a finished card is left): show it normally
+            Refresh();
+        }
+        else if (!_viewModel.IsCollapsed && IslandCollapse.ShouldCollapse(snapshot, _openSince, now, _pointerOver))
+        {
+            _viewModel.IsCollapsed = true;
+            Refresh();
+        }
     }
 
     private void CheckFullScreen()

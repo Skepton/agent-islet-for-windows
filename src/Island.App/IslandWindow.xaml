@@ -9,7 +9,6 @@
         FontFamily="{StaticResource UiFont}" UseLayoutRounding="True" SnapsToDevicePixels="True">
 
     <Window.Resources>
-        <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
 
         <!-- Percentages in the strip and on usage cards: green, amber, red as usage climbs. -->
         <Style x:Key="LevelText" TargetType="TextBlock">
@@ -36,40 +35,6 @@
                 </DataTrigger>
             </Style.Triggers>
         </Style>
-
-        <Style x:Key="StatusDot" TargetType="Ellipse">
-            <Setter Property="Width" Value="9" />
-            <Setter Property="Height" Value="9" />
-            <Setter Property="Margin" Value="0,0,8,0" />
-            <Setter Property="VerticalAlignment" Value="Center" />
-            <Setter Property="Fill" Value="{StaticResource AccentBrush}" />
-        </Style>
-
-        <Style x:Key="ChipBorder" TargetType="Border">
-            <Setter Property="Background" Value="{StaticResource ChipBrush}" />
-            <Setter Property="CornerRadius" Value="9" />
-            <Setter Property="Padding" Value="7,2" />
-            <Setter Property="Margin" Value="4,0,0,0" />
-        </Style>
-
-        <!-- Button colours by kind: No = neutral, Yes = orange, remember = red. -->
-        <Style x:Key="ActionButtonStyle" TargetType="Button" BasedOn="{StaticResource IslandButton}">
-            <Setter Property="Margin" Value="3,0" />
-            <Style.Triggers>
-                <DataTrigger Binding="{Binding Kind}" Value="Allow">
-                    <Setter Property="Background" Value="{StaticResource AccentBrush}" />
-                </DataTrigger>
-                <DataTrigger Binding="{Binding Kind}" Value="Remember">
-                    <Setter Property="Background" Value="{StaticResource DangerBrush}" />
-                </DataTrigger>
-            </Style.Triggers>
-        </Style>
-
-        <DataTemplate x:Key="ChipTemplate">
-            <Border Style="{StaticResource ChipBorder}">
-                <TextBlock Text="{Binding}" Style="{StaticResource ChipText}" />
-            </Border>
-        </DataTemplate>
 
         <!-- Permission request -->
         <DataTemplate DataType="{x:Type local:PermissionCardViewModel}">
@@ -214,11 +179,29 @@
         </DataTemplate>
     </Window.Resources>
 
-    <Border x:Name="Panel" Background="{StaticResource IslandBlackBrush}" CornerRadius="0,0,20,20" Opacity="0">
-        <Border.RenderTransform>
+    <!-- Root slides and fades as one; it holds the full island and the collapsed pill. Its empty area is transparent,
+         so clicks beside the pill reach the window underneath. -->
+    <Grid x:Name="Root" Opacity="0">
+        <Grid.RenderTransform>
             <TranslateTransform x:Name="Slide" />
-        </Border.RenderTransform>
+        </Grid.RenderTransform>
 
+    <!-- Collapsed: a small black pill with a bell and how many things still wait. Hover or click opens it again. -->
+    <Border x:Name="Pill" Background="{StaticResource IslandBlackBrush}" CornerRadius="0,0,16,16" Padding="14,6,14,7"
+            HorizontalAlignment="Center" VerticalAlignment="Top" Cursor="Hand" ToolTip="Show"
+            Visibility="{Binding IsCollapsed, Converter={StaticResource BoolToVisibility}}">
+        <Border.InputBindings>
+            <MouseBinding MouseAction="LeftClick" Command="{Binding Expand}" />
+        </Border.InputBindings>
+        <StackPanel Orientation="Horizontal">
+            <TextBlock Text="&#xEA8F;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="13"
+                       Foreground="{StaticResource AccentBrush}" VerticalAlignment="Center" Margin="0,1,7,0" />
+            <TextBlock Text="{Binding PillText}" Style="{StaticResource TitleText}" FontSize="12" VerticalAlignment="Center" />
+        </StackPanel>
+    </Border>
+
+    <Border x:Name="Panel" Background="{StaticResource IslandBlackBrush}" CornerRadius="0,0,20,20"
+            Visibility="{Binding IsExpanded, Converter={StaticResource BoolToVisibility}}">
         <StackPanel Margin="10,0,10,10">
             <!-- Usage strip: first row, and the whole island when nothing needs you. -->
             <StackPanel Orientation="Horizontal" Margin="6,8,6,6"
@@ -254,4 +237,5 @@
                     Visibility="{Binding HasFooter, Converter={StaticResource BoolToVisibility}}" />
         </StackPanel>
     </Border>
+    </Grid>
 </Window>

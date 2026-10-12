@@ -241,6 +241,62 @@ public class OverlayStateTests
     }
 }
 
+public class IslandCollapseTests
+{
+    private static readonly DateTimeOffset T0 = new(2026, 10, 11, 12, 0, 0, TimeSpan.Zero);
+
+    private static OverlaySnapshot With(StoreEffect effect)
+    {
+        var state = new OverlayState();
+        state.Apply(new[] { effect }, T0);
+        return state.Snapshot();
+    }
+
+    private static readonly PermissionShown Permission =
+        new("s1", "my-app", new PendingPermission("r1", "Bash", "npm test", "default", Array.Empty<RememberOption>()));
+
+    [Fact]
+    public void A_waiting_card_collapses_after_a_few_seconds_unless_the_pointer_is_over_it()
+    {
+        var snapshot = With(Permission);
+
+        Assert.False(IslandCollapse.ShouldCollapse(snapshot, T0, T0.AddSeconds(4), pointerOver: false));
+        Assert.True(IslandCollapse.ShouldCollapse(snapshot, T0, T0.AddSeconds(5), pointerOver: false));
+        Assert.False(IslandCollapse.ShouldCollapse(snapshot, T0, T0.AddMinutes(5), pointerOver: true));
+    }
+
+    [Fact]
+    public void Questions_and_new_projects_collapse_too_but_finished_cards_never_do()
+    {
+        var question = With(new NoticeShown("s1", "my-app", SessionPhase.NeedsInput, "Which one?"));
+        var project = With(new ProjectApprovalRequested(ProjectRef.From(@"C:\p")!));
+        var finished = With(new NoticeShown("s1", "my-app", SessionPhase.Finished, "Done"));
+
+        Assert.True(IslandCollapse.ShouldCollapse(question, T0, T0.AddSeconds(6), false));
+        Assert.True(IslandCollapse.ShouldCollapse(project, T0, T0.AddSeconds(6), false));
+        Assert.False(IslandCollapse.ShouldCollapse(finished, T0, T0.AddSeconds(6), false));
+        Assert.False(IslandCollapse.ShouldCollapse(new OverlayState().Snapshot(), T0, T0.AddSeconds(6), false));
+    }
+
+    [Fact]
+    public void The_island_offers_one_remember_button_and_the_panel_all_of_them()
+    {
+        var options = new[]
+        {
+            new RememberOption("Always Allow (PowerShell)", "Allow + remember PowerShell(Start-Sleep:*) in this project (just you)", "a"),
+            new RememberOption("Always Allow (PowerShell)", "Allow + remember PowerShell(Start-Sleep:*) in all projects", "b"),
+        };
+        var card = new PermissionCard
+        {
+            Id = "r1", CreatedAt = T0, SessionId = "s1", SessionName = "my-app",
+            Permission = new PendingPermission("r1", "PowerShell", "Start-Sleep 10", "default", options),
+        };
+
+        Assert.Equal(3, CardPresenter.Present(card, T0, maxRemember: 1).Actions.Count);
+        Assert.Equal(4, CardPresenter.Present(card, T0).Actions.Count);
+    }
+}
+
 public class UsageFormatTests
 {
     [Theory]

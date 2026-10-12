@@ -4,7 +4,7 @@
 #   2. registers the hooks in Claude Code's user settings (~/.claude/settings.json, backed up first), so every
 #      project reaches the island. The island then asks once per project whether to show it;
 #   3. starts the app in the tray.
-# Run it again to update. Usage:
+# Run it again to update: it closes the running island first. Usage:
 #   powershell -File scripts\install-local.ps1 [-PollUsage] [-NoStart]
 #   powershell -File scripts\install-local.ps1 -Uninstall      (removes the hooks; the files stay)
 param(
@@ -32,7 +32,17 @@ if ($Uninstall) {
 }
 
 if ($runningApp.Count -gt 0) {
-    throw "the island app is running (pid $($runningApp.Id -join ', ')); quit it from its tray icon, then run this again"
+    # Ask it to quit cleanly (any waiting permission request is released with "no decision": Claude Code asks itself).
+    $signal = $null
+    if ([Threading.EventWaitHandle]::TryOpenExisting('Local\ClaudeCodeIsland-Quit', [ref]$signal)) {
+        Write-Host "Closing the running island to update it..."
+        $null = $signal.Set(); $signal.Dispose()
+        foreach ($p in $runningApp) { $null = $p.WaitForExit(15000) }
+    }
+    $still = @(Get-Process ClaudeCodeIsland -ErrorAction SilentlyContinue)
+    if ($still.Count -gt 0) {
+        throw "the island app is still running (pid $($still.Id -join ', ')); quit it from its tray icon, then run this again"
+    }
 }
 $waitingHooks = @(Get-Process island-hook -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $hook })
 if ($waitingHooks.Count -gt 0) {

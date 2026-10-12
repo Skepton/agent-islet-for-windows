@@ -14,14 +14,14 @@ public sealed record ProjectRow(
     ICommand Ignore,
     ICommand Forget);
 
-/// <summary>Backs the settings window: the projects the user chose to show or ignore. UI thread only.</summary>
-public sealed class SettingsViewModel : ObservableObject
+/// <summary>The panel's Projects tab: the folders the user chose to show or ignore. UI thread only.</summary>
+public sealed class ProjectsViewModel : ObservableObject
 {
     private readonly IslandHub _hub;
     private readonly bool _askingEnabled;
 
     /// <param name="askingEnabled">False when the app runs with <c>--allow-all-projects</c>.</param>
-    public SettingsViewModel(IslandHub hub, bool askingEnabled)
+    public ProjectsViewModel(IslandHub hub, bool askingEnabled)
     {
         _hub = hub;
         _askingEnabled = askingEnabled;
@@ -33,7 +33,7 @@ public sealed class SettingsViewModel : ObservableObject
         ? "The first time a session from a new folder reaches the island, it asks whether to show that project. " +
           "Ignored projects never appear; their agent works exactly as if the island were not running. " +
           "Forget a project to be asked again next time."
-        : "Every project is shown: the app was started with --allow-all-projects, so choices below are not applied.";
+        : "Every project is shown: the island was started with --allow-all-projects, so the choices below are not applied.";
 
     public string EmptyText => "No projects yet. Start an agent session in a project folder and the island will ask.";
 
@@ -50,7 +50,7 @@ public sealed class SettingsViewModel : ObservableObject
                 project.Name,
                 project.Path,
                 shown ? "Shown" : "Ignored",
-                entry.DecidedAt == default ? "" : entry.DecidedAt.LocalDateTime.ToString("g"),
+                entry.DecidedAt == default ? "" : "since " + entry.DecidedAt.LocalDateTime.ToString("g"),
                 shown,
                 new RelayCommand(() => Decide(project, ProjectDecision.Allowed)),
                 new RelayCommand(() => Decide(project, ProjectDecision.Ignored)),

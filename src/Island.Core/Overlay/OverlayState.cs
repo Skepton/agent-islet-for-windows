@@ -66,6 +66,24 @@ public sealed record OverlayOptions
     public bool ShowFinished { get; init; } = true;
 }
 
+/// <summary>
+/// When the island shrinks to its small pill: the front card still waits for the user (permission, question, new
+/// project), it has been open a few seconds, and the pointer is not over it. Transient cards (finished, milestones)
+/// never collapse; they expire instead.
+/// </summary>
+public static class IslandCollapse
+{
+    public static readonly TimeSpan After = TimeSpan.FromSeconds(5);
+
+    /// <summary>After the pointer leaves an expanded island, it collapses this much sooner than <see cref="After"/>.</summary>
+    public static readonly TimeSpan AfterHover = TimeSpan.FromSeconds(2);
+
+    public static bool IsWaiting(CardKind kind) => kind is CardKind.Permission or CardKind.NeedsInput or CardKind.ProjectApproval;
+
+    public static bool ShouldCollapse(OverlaySnapshot snapshot, DateTimeOffset openSince, DateTimeOffset now, bool pointerOver, TimeSpan? after = null) =>
+        !pointerOver && snapshot.Current is { } front && IsWaiting(front.Kind) && now - openSince >= (after ?? After);
+}
+
 /// <param name="Cards">Visible cards in display order (most urgent first).</param>
 /// <param name="Index">Position of <paramref name="Current"/> in <paramref name="Cards"/>, or -1.</param>
 public sealed record OverlaySnapshot(IReadOnlyList<OverlayCard> Cards, OverlayCard? Current, int Index);

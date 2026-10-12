@@ -61,6 +61,22 @@ internal static class NativeMethods
     [DllImport("shell32.dll")]
     private static extern int SHQueryUserNotificationState(out int state);
 
+    [DllImport("dwmapi.dll")]
+    private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attribute, ref int value, int size);
+
+    /// <summary>Windows 11 rounded corners, dark mode and a dark border for a borderless window. Harmless no-op on older Windows.</summary>
+    public static void UseRoundedDarkFrame(IntPtr hwnd)
+    {
+        const int useImmersiveDarkMode = 20, cornerPreference = 33, borderColor = 34;
+        const int round = 2;
+        var dark = 1;
+        var corners = round;
+        var border = 0x002A2626; // COLORREF 0x00BBGGRR: #26262A, the island's card border
+        DwmSetWindowAttribute(hwnd, useImmersiveDarkMode, ref dark, sizeof(int));
+        DwmSetWindowAttribute(hwnd, cornerPreference, ref corners, sizeof(int));
+        DwmSetWindowAttribute(hwnd, borderColor, ref border, sizeof(int));
+    }
+
     /// <summary>True while a full-screen app, D3D full-screen game or presentation has the screen.</summary>
     public static bool IsFullScreenAppRunning()
     {

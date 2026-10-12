@@ -1,3 +1,4 @@
+using System.IO;
 using System.Net.Http;
 using System.Windows;
 using System.Windows.Threading;
@@ -8,14 +9,17 @@ namespace Island.App;
 
 public partial class App : Application
 {
+    /// <summary>Named event that asks the running island to quit (used when updating it).</summary>
+    public const string QuitSignalName = @"Local\ClaudeCodeIsland-Quit";
+
     private Mutex? _singleInstance;
+    private EventWaitHandle? _quitSignal;
+    private RegisteredWaitHandle? _quitWait;
     private CancellationTokenSource? _shutdown;
     private DispatcherTimer? _pruneTimer;
     private TrayIconHost? _tray;
-    private DebugViewModel? _viewModel;
-    private MainWindow? _window;
-    private SettingsViewModel? _settings;
-    private SettingsWindow? _settingsWindow;
+    private PanelViewModel? _panel;
+    private PanelWindow? _panelWindow;
     private OverlayController? _overlay;
     private DemoDriver? _demo;
     private HttpClient? _http;
@@ -35,6 +39,11 @@ public partial class App : Application
             Shutdown();
             return;
         }
+
+        // scripts/install-local.ps1 sets this event to ask a running island to quit cleanly before updating it.
+        _quitSignal = new EventWaitHandle(false, EventResetMode.AutoReset, QuitSignalName);
+        _quitWait = ThreadPool.RegisterWaitForSingleObject(
+            _quitSignal, (_, _) => Dispatcher.InvokeAsync(Quit), null, Timeout.Infinite, executeOnlyOnce: true);
 
         string pipeName;
         try
@@ -61,18 +70,20 @@ public partial class App : Application
             agents,
             effects => Dispatcher.InvokeAsync(() =>
             {
-                _viewModel?.Apply(effects);
+                _panel?.Apply(effects);
                 _overlay?.OnEffects(effects);
-                if (effects.Any(x => x is ProjectDecided)) _settings?.Refresh();
             }),
             projects: projects);
 
-        _viewModel = new DebugViewModel(hub);
-        _window = new MainWindow(_viewModel);
-        _settings = new SettingsViewModel(hub, askAboutProjects);
-        _settingsWindow = new SettingsWindow(_settings);
-        _overlay = new OverlayController(hub, _viewModel.LogLine, ShowWindow);
-        _tray = new TrayIconHost(ShowWindow, ShowSettings, Quit);
+        _panel = new PanelViewModel(
+            hub,
+            new ProjectsViewModel(hub, askAboutProjects),
+            HookStatus,
+            "Version " + (typeof(App).Assembly.GetName().Version?.ToString(3) ?? "?"),
+            OpenDataFolder);
+        _panelWindow = new PanelWindow(_panel);
+        _overlay = new OverlayController(hub, _panel.LogLine, () => ShowPanel(PanelTab.Sessions));
+        _tray = new TrayIconHost(() => ShowPanel(PanelTab.Sessions), () => ShowPanel(PanelTab.Projects), Quit);
 
         _shutdown = new CancellationTokenSource();
 
@@ -103,7 +114,7 @@ public partial class App : Application
             _demo.Start();
         }
 
-        if (!e.Args.Contains("--tray")) ShowWindow();
+        if (!e.Args.Contains("--tray")) ShowPanel(PanelTab.Sessions);
     }
 
     protected override void OnSessionEnding(SessionEndingCancelEventArgs e)
@@ -127,29 +138,52 @@ public partial class App : Application
         var source = new OAuthUsageSource(_http, new OAuthCredentialsReader());
         _usage = new UsageMonitor(source, engine, update => Dispatcher.InvokeAsync(() =>
         {
-            _viewModel?.ApplyUsage(update);
+            _panel?.ApplyUsage(update);
             _overlay?.OnUsage(update);
         }), store);
 
         _ = _usage.RunAsync(shutdown);
     }
 
-    private void ShowWindow()
+    private void ShowPanel(PanelTab tab)
     {
-        if (_window is null) return;
-        _viewModel?.Refresh();
-        _window.Show();
-        _window.WindowState = WindowState.Normal;
-        _window.Activate();
+        if (_panel is null || _panelWindow is null) return;
+        _panel.Tab = tab;
+        _panel.Refresh();
+        _panel.Projects.Refresh();
+        _panelWindow.Show();
+        if (_panelWindow.WindowState == WindowState.Minimized) _panelWindow.WindowState = WindowState.Normal;
+        _panelWindow.Activate();
     }
 
-    private void ShowSettings()
+    /// <summary>One line for the panel: are the Claude Code hooks installed, and which exe do they run? Reads settings, never writes.</summary>
+    private static string HookStatus()
     {
-        if (_settingsWindow is null) return;
-        _settings?.Refresh();
-        _settingsWindow.Show();
-        _settingsWindow.WindowState = WindowState.Normal;
-        _settingsWindow.Activate();
+        var path = ClaudePaths.UserSettings();
+        try
+        {
+            var count = HookSettings.CountOurs(SettingsFile.Read(path));
+            return count == 0
+                ? "Claude Code hooks: not installed (run scripts\\install-local.ps1)"
+                : $"Claude Code hooks: {count} installed in {path}";
+        }
+        catch (Exception ex) when (ex is FormatException or IOException or UnauthorizedAccessException)
+        {
+            return $"Claude Code hooks: could not read {path}";
+        }
+    }
+
+    private static void OpenDataFolder()
+    {
+        try
+        {
+            Directory.CreateDirectory(IslandPaths.DataDir);
+            System.Diagnostics.Process.Start("explorer.exe", IslandPaths.DataDir);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.ComponentModel.Win32Exception)
+        {
+            // Nothing to show; the path is in the README.
+        }
     }
 
     private void OnServerFailed(Exception? error)
@@ -172,13 +206,14 @@ public partial class App : Application
         _cleanedUp = true;
 
         _shutdown?.Cancel();
+        _quitWait?.Unregister(null);
+        _quitSignal?.Dispose();
         _http?.Dispose();
         _pruneTimer?.Stop();
         _demo?.Stop();
         _overlay?.Dispose();
         _tray?.Dispose();
-        _window?.ReallyClose();
-        _settingsWindow?.ReallyClose();
+        _panelWindow?.ReallyClose();
 
         try
         {

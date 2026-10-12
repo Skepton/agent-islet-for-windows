@@ -1,4 +1,4 @@
-# UI smoke test: shows the debug window, sends permission requests through the real forwarder, then clicks the
+# UI smoke test: shows the control panel, sends permission requests through the real forwarder, then clicks the
 # buttons via Windows UI Automation and checks what the forwarder printed. Briefly shows a window on screen.
 # Usage: powershell -File scripts\smoke-app-ui.ps1 [-Config Debug]
 param([string]$Config = 'Debug')
@@ -61,21 +61,22 @@ try {
     $window = $null
     $deadline = (Get-Date).AddSeconds(10)
     while (-not $window -and (Get-Date) -lt $deadline) {
-        # The process also owns the island overlay window, so pick the debug window by its title.
+        # The process also owns the island overlay window, so pick the control panel by its title.
         $window = [Windows.Automation.AutomationElement]::RootElement.FindFirst([Windows.Automation.TreeScope]::Children,
             (New-Object Windows.Automation.AndCondition(
                 (New-Object Windows.Automation.PropertyCondition([Windows.Automation.AutomationElement]::ProcessIdProperty, $proc.Id)),
-                (New-Object Windows.Automation.PropertyCondition([Windows.Automation.AutomationElement]::NameProperty, 'Claude Code Island - sessions')))))
+                (New-Object Windows.Automation.PropertyCondition([Windows.Automation.AutomationElement]::NameProperty, 'Claude Code Island - panel')))))
         if (-not $window) { Start-Sleep -Milliseconds 150 }
     }
-    Check 'debug window is shown' ($null -ne $window)
+    Check 'control panel is shown' ($null -ne $window)
     if (-not $window) { throw "no window" }
 
-    $out = Round 'PermissionRequest.json' 'Allow'
-    Check 'Allow -> forwarder prints an allow decision' ($out -match '"behavior":"allow"' -and $out -match '"hookEventName":"PermissionRequest"') "($out)"
+    # The panel's Sessions tab uses the island's labels (No / Yes), and the full label for each remember option.
+    $out = Round 'PermissionRequest.json' 'Yes'
+    Check 'Yes -> forwarder prints an allow decision' ($out -match '"behavior":"allow"' -and $out -match '"hookEventName":"PermissionRequest"') "($out)"
 
-    $out = Round 'PermissionRequest.json' 'Deny'
-    Check 'Deny -> forwarder prints a deny decision with a message' ($out -match '"behavior":"deny"' -and $out -match '"message"') "($out)"
+    $out = Round 'PermissionRequest.json' 'No'
+    Check 'No -> forwarder prints a deny decision with a message' ($out -match '"behavior":"deny"' -and $out -match '"message"') "($out)"
 
     $out = Round 'PermissionRequest.json' 'Answer in terminal'
     Check 'Answer in terminal -> forwarder prints nothing' ($out -eq '') "($out)"
