@@ -46,14 +46,21 @@ public sealed class IslandHub
         if (agent.Translate(frame.PayloadJson, frame.Id) is not { } evt) return null;
 
         var project = ProjectRef.From(frame.Project ?? evt.Cwd);
-        if (!Admit(project, agent)) return null;
+        var source = evt.Source ?? evt.GetType().Name;
+        if (!Admit(project, agent))
+        {
+            Dispatch(new StoreEffect[] { new EventReceived(evt.SessionId, source, Shown: false) });
+            return null;
+        }
 
         evt = evt with { ClientApp = frame.ClientApp ?? evt.ClientApp, Agent = agent.DisplayName, Project = project?.Key };
         var holdForDecision = frame.Wait && evt is PermissionRequested;
 
         // Register the waiter before anything is presented, so an answer given instantly cannot be lost.
         var output = holdForDecision ? _broker.HoldAsync(frame.Id, agent, ct) : null;
-        Dispatch(_store.Apply(evt, _clock()));
+        var effects = new List<StoreEffect> { new EventReceived(evt.SessionId, source, Shown: true) };
+        effects.AddRange(_store.Apply(evt, _clock()));
+        Dispatch(effects);
         if (output is null) return null;
 
         var answer = await output.ConfigureAwait(false);

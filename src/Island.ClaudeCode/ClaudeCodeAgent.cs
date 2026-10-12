@@ -37,7 +37,16 @@ public sealed class ClaudeCodeAgent : IAgentIntegration
             "SessionStart" => new SessionStarted { SessionId = sid },
             "UserPromptSubmit" => new PromptSubmitted { SessionId = sid, Prompt = hook.Prompt },
             "PermissionRequest" => new PermissionRequested { SessionId = sid, Permission = Pending(hook, requestId) },
-            "PostToolUse" or "PermissionDenied" => new ToolProceeded { SessionId = sid },
+            // PostToolUse carries no id that links it to its PermissionRequest; the call key does (see ToolSummary.CallKey).
+            "PostToolUse" or "PermissionDenied" => new ToolProceeded { SessionId = sid, CallKey = ToolSummary.CallKey(hook.ToolName, hook.ToolInputJson) },
+            // AskUserQuestion fires neither PermissionRequest nor a "needs you" Notification (seen live); PreToolUse
+            // is registered for that tool only. Its PostToolUse clears the card once the user has answered.
+            "PreToolUse" when hook.ToolName == "AskUserQuestion" => new InputRequested
+            {
+                SessionId = sid,
+                Text = QuestionText.From(hook.ToolInputJson) ?? "Claude has a question for you",
+                CallKey = ToolSummary.CallKey(hook.ToolName, hook.ToolInputJson),
+            },
             "Notification" when hook.NotificationType is { } type && NeedsYouTypes.Contains(type) => new InputRequested
             {
                 SessionId = sid,
@@ -49,7 +58,15 @@ public sealed class ClaudeCodeAgent : IAgentIntegration
             "SessionEnd" => new SessionEnded { SessionId = sid },
             _ => new SessionActivity { SessionId = sid },
         };
-        return evt with { Cwd = hook.Cwd, SessionTitle = hook.SessionTitle };
+        return evt with { Cwd = hook.Cwd, SessionTitle = hook.SessionTitle, Source = SourceOf(hook) };
+    }
+
+    /// <summary>"PostToolUse(Bash)", "Notification(idle_prompt)": event and tool / notification type names only.</summary>
+    private static string SourceOf(HookPayload hook)
+    {
+        var detail = hook.EventName == "Notification" ? hook.NotificationType : hook.ToolName;
+        var name = string.IsNullOrEmpty(hook.EventName) ? "(no event name)" : hook.EventName;
+        return string.IsNullOrEmpty(detail) ? name : $"{name}({detail})";
     }
 
     public string? EncodeVerdict(PermissionVerdict verdict) => verdict switch
@@ -71,6 +88,7 @@ public sealed class ClaudeCodeAgent : IAgentIntegration
             SuggestionChoice.FromRaw(hook.PermissionSuggestionsJson).Select(s => s.ToOption(tool)).ToList(),
             ToolSummary.Description(hook.ToolName, hook.ToolInputJson),
             ToolSummary.Headline(tool),
-            ToolSummary.CommandPrefix(tool));
+            ToolSummary.CommandPrefix(tool),
+            ToolSummary.CallKey(hook.ToolName, hook.ToolInputJson));
     }
 }

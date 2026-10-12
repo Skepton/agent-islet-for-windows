@@ -62,14 +62,24 @@ public class SessionStoreTests
     }
 
     [Fact]
-    public void Input_request_becomes_needs_input_truncated_to_160_characters()
+    public void Input_request_becomes_needs_input_truncated_to_400_characters()
     {
         var store = new SessionStore();
 
-        var notice = Assert.Single(store.Apply(Events.Input(new string('q', 500)), T0).OfType<NoticeShown>());
+        var notice = Assert.Single(store.Apply(Events.Input(new string('q', 900)), T0).OfType<NoticeShown>());
 
         Assert.Equal(SessionPhase.NeedsInput, notice.Phase);
-        Assert.True(notice.Text.Length <= 160);
+        Assert.True(notice.Text.Length <= 400);
+    }
+
+    [Fact]
+    public void Notice_bodies_keep_their_line_breaks()
+    {
+        var store = new SessionStore();
+
+        var notice = Assert.Single(store.Apply(Events.Finished("Done.\r\n\r\n\r\n- one  thing\n- another\n\n"), T0).OfType<NoticeShown>());
+
+        Assert.Equal("Done.\n\n- one thing\n- another", notice.Text);
     }
 
     [Fact]
@@ -121,15 +131,80 @@ public class SessionStoreTests
     }
 
     [Fact]
-    public void Newer_permission_request_supersedes_the_older_one()
+    public void Parallel_permission_requests_queue_up_instead_of_replacing_each_other()
     {
         var store = new SessionStore();
         store.Apply(Events.Permission("req1", "first"), T0);
 
         var effects = store.Apply(Events.Permission("req2", "second"), T0.AddSeconds(1));
 
-        Assert.Contains(effects.OfType<PermissionCleared>(), c => c.RequestId == "req1" && c.Outcome == PermissionOutcome.Superseded);
-        Assert.Equal("req2", store.Snapshot().Single().Pending!.RequestId);
+        Assert.Empty(effects.OfType<PermissionCleared>());
+        Assert.Equal(new[] { "req1", "req2" }, store.Snapshot().Single().Pendings.Select(p => p.RequestId));
+    }
+
+    [Fact]
+    public void A_finished_tool_only_closes_the_request_with_the_same_call_key()
+    {
+        var store = new SessionStore();
+        store.Apply(Events.Permission("req1") with { Permission = Events.Pending("req1") with { CallKey = "Bash\nnpm test" } }, T0);
+        store.Apply(Events.Permission("req2") with { Permission = Events.Pending("req2") with { CallKey = "Bash\nrm -rf x" } }, T0);
+
+        // A parallel subagent's Read finishing must not dismiss anything.
+        Assert.Empty(store.Apply(Events.Proceeded() with { CallKey = "Read\nC:\\a.cs" }, T0.AddSeconds(1)).OfType<PermissionCleared>());
+        var effects = store.Apply(Events.Proceeded() with { CallKey = "Bash\nnpm test" }, T0.AddSeconds(2));
+
+        Assert.Equal("req1", Assert.Single(effects.OfType<PermissionCleared>()).RequestId);
+        var session = store.Snapshot().Single();
+        Assert.Equal("req2", Assert.Single(session.Pendings).RequestId);
+        Assert.Equal(SessionPhase.NeedsPermission, session.Phase);
+    }
+
+    [Fact]
+    public void A_finished_tool_without_a_call_key_closes_every_request()
+    {
+        var store = new SessionStore();
+        store.Apply(Events.Permission("req1"), T0);
+        store.Apply(Events.Permission("req2"), T0);
+
+        var effects = store.Apply(Events.Proceeded(), T0.AddSeconds(1));
+
+        Assert.Equal(2, effects.OfType<PermissionCleared>().Count());
+        Assert.Equal(SessionPhase.Working, store.Snapshot().Single().Phase);
+    }
+
+    [Fact]
+    public void Answering_one_of_two_requests_keeps_the_other()
+    {
+        var store = new SessionStore();
+        store.Apply(Events.Permission("req1"), T0);
+        store.Apply(Events.Permission("req2"), T0);
+
+        store.ResolvePermission("req2", T0.AddSeconds(1), PermissionOutcome.Answered);
+
+        Assert.Equal("req1", Assert.Single(store.Snapshot().Single().Pendings).RequestId);
+    }
+
+    [Fact]
+    public void A_question_tied_to_a_call_survives_other_tools_and_closes_with_its_own()
+    {
+        var store = new SessionStore();
+        store.Apply(Events.Input("Which database?") with { CallKey = "AskUserQuestion\nWhich database?" }, T0);
+
+        var sibling = store.Apply(Events.Proceeded() with { CallKey = "Read\nC:\\a.cs" }, T0.AddSeconds(1));
+        var answered = store.Apply(Events.Proceeded() with { CallKey = "AskUserQuestion\nWhich database?" }, T0.AddSeconds(5));
+
+        Assert.Empty(sibling.OfType<NoticeCleared>());
+        Assert.Single(answered.OfType<NoticeCleared>());
+        Assert.Equal(SessionPhase.Working, store.Snapshot().Single().Phase);
+    }
+
+    [Fact]
+    public void An_untied_notice_still_clears_on_any_activity()
+    {
+        var store = new SessionStore();
+        store.Apply(Events.Input("Claude is waiting for your input"), T0);
+
+        Assert.Single(store.Apply(Events.Proceeded() with { CallKey = "Read\nx" }, T0.AddSeconds(1)).OfType<NoticeCleared>());
     }
 
     [Fact]

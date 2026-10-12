@@ -35,8 +35,21 @@ public sealed record SuggestionChoice(string Type, string Label, string RawJson,
             "addDirectories" => "Allow + add folder " + FirstString(root, "directories"),
             _ => "Allow + " + type,
         };
+        // Several suggestions often differ only in where Claude Code saves them, so the label says so.
+        var where = Where(JsonUtil.Str(root, "destination"));
+        if (where is not null) label = label.TrimEnd() + " " + where;
         return new SuggestionChoice(type, label.TrimEnd(), raw, FirstRuleTool(root));
     }
+
+    private static string? Where(string? destination) => destination switch
+    {
+        "session" => "for this session",
+        "localSettings" => "in this project (just you)",
+        "projectSettings" => "in this project (shared)",
+        "userSettings" => "in all projects",
+        null or "" => null,
+        var other => "(" + other + ")",
+    };
 
     private static string RuleText(JsonElement root)
     {

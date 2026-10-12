@@ -59,25 +59,38 @@ public sealed class SessionStore
 
                 case PermissionRequested requested:
                 {
-                    s = ReleasePending(s, now, PermissionOutcome.Superseded, effects);
+                    // Parallel tool calls (subagents) can wait at the same time, so requests queue up instead of replacing each other.
                     var pending = requested.Permission;
-                    s = ClearNotice(s, effects) with { Phase = SessionPhase.NeedsPermission, Pending = pending };
+                    if (s.Pendings.Any(p => p.RequestId == pending.RequestId)) break;
+                    if (s.NoticeCallKey is null) s = ClearNotice(s, effects); // a question tied to another call keeps waiting
+                    s = s with { Phase = SessionPhase.NeedsPermission, Pendings = s.Pendings.Append(pending).ToList() };
                     effects.Add(new PermissionShown(sid, s.DisplayName, pending, s.LastPrompt, s.ClientApp, s.Agent));
                     break;
                 }
 
-                case ToolProceeded:
-                    s = Working(ReleasePending(s, now, PermissionOutcome.ResolvedElsewhere, effects), effects);
+                case ToolProceeded proceeded:
+                {
+                    // Only the call that ended is resolved: a sibling tool finishing must not dismiss a card still waiting.
+                    s = ReleasePending(s, now, PermissionOutcome.ResolvedElsewhere, effects,
+                        p => proceeded.CallKey is null || p.CallKey == proceeded.CallKey);
+                    if (s.NoticeCallKey is null || s.NoticeCallKey == proceeded.CallKey) s = ClearNotice(s, effects);
+                    s = s with
+                    {
+                        Phase = s.Pendings.Count > 0 ? SessionPhase.NeedsPermission
+                            : s.Notice is not null ? s.Phase
+                            : SessionPhase.Working,
+                    };
                     break;
+                }
 
                 case InputRequested input:
                 {
                     // An echo of a permission request is a duplicate of its card while it shows or was just answered.
-                    var duplicateOfCard = input.EchoesPermission && (s.Pending is not null || RecentlyResolved(s, now));
+                    var duplicateOfCard = input.EchoesPermission && (s.Pendings.Count > 0 || RecentlyResolved(s, now));
                     if (!duplicateOfCard)
                     {
-                        var text = TextUtil.Truncate(input.Text, 160);
-                        s = s with { Phase = SessionPhase.NeedsInput, Notice = text };
+                        var text = TextUtil.TruncateBlock(input.Text, 400);
+                        s = s with { Phase = SessionPhase.NeedsInput, Notice = text, NoticeCallKey = input.CallKey };
                         effects.Add(new NoticeShown(sid, s.DisplayName, SessionPhase.NeedsInput, text, s.LastPrompt, s.ClientApp, s.Agent));
                     }
                     break;
@@ -88,7 +101,7 @@ public sealed class SessionStore
                     s = ReleasePending(s, now, PermissionOutcome.ResolvedElsewhere, effects);
                     if (!finished.Continuing)
                     {
-                        var text = TextUtil.Truncate(finished.Message ?? "Finished", 400);
+                        var text = TextUtil.TruncateBlock(finished.Message ?? "Finished", 400);
                         s = s with { Phase = SessionPhase.Finished, Notice = text };
                         effects.Add(new NoticeShown(sid, s.DisplayName, SessionPhase.Finished, text, s.LastPrompt, s.ClientApp, s.Agent));
                     }
@@ -110,9 +123,9 @@ public sealed class SessionStore
         var effects = new List<StoreEffect>();
         lock (_gate)
         {
-            var owner = _sessions.Values.FirstOrDefault(x => x.Pending?.RequestId == requestId);
+            var owner = _sessions.Values.FirstOrDefault(x => x.Pendings.Any(p => p.RequestId == requestId));
             if (owner is null) return effects;
-            _sessions[owner.SessionId] = ReleasePending(owner, now, outcome, effects);
+            _sessions[owner.SessionId] = ReleasePending(owner, now, outcome, effects, p => p.RequestId == requestId);
         }
         return effects;
     }
@@ -153,7 +166,7 @@ public sealed class SessionStore
     {
         _sessions.TryGetValue(sid, out var existing);
         var cwd = evt.Cwd ?? existing?.Cwd;
-        var session = existing ?? new SessionInfo(sid, "", null, SessionPhase.Idle, null, null, now, null);
+        var session = existing ?? new SessionInfo(sid, "", null, SessionPhase.Idle, Array.Empty<PendingPermission>(), null, now, null);
         return session with
         {
             Cwd = cwd,
@@ -165,15 +178,20 @@ public sealed class SessionStore
         };
     }
 
-    private static SessionInfo ReleasePending(SessionInfo s, DateTimeOffset now, PermissionOutcome outcome, List<StoreEffect> effects)
+    /// <summary>Releases the pending requests that match <paramref name="which"/> (all of them by default).</summary>
+    private static SessionInfo ReleasePending(
+        SessionInfo s, DateTimeOffset now, PermissionOutcome outcome, List<StoreEffect> effects, Func<PendingPermission, bool>? which = null)
     {
-        if (s.Pending is not { } pending) return s;
-        effects.Add(new PermissionCleared(s.SessionId, pending.RequestId, outcome));
+        var released = s.Pendings.Where(which ?? (_ => true)).ToList();
+        if (released.Count == 0) return s;
+
+        foreach (var pending in released) effects.Add(new PermissionCleared(s.SessionId, pending.RequestId, outcome));
+        var remaining = s.Pendings.Except(released).ToList();
         return s with
         {
-            Pending = null,
+            Pendings = remaining,
             LastPermissionResolvedAt = now,
-            Phase = s.Phase == SessionPhase.NeedsPermission ? SessionPhase.Working : s.Phase,
+            Phase = remaining.Count == 0 && s.Phase == SessionPhase.NeedsPermission ? SessionPhase.Working : s.Phase,
         };
     }
 
@@ -184,7 +202,7 @@ public sealed class SessionStore
     {
         if (s.Notice is null) return s;
         effects.Add(new NoticeCleared(s.SessionId));
-        return s with { Notice = null };
+        return s with { Notice = null, NoticeCallKey = null };
     }
 
     private bool RecentlyResolved(SessionInfo s, DateTimeOffset now) =>

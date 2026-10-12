@@ -49,7 +49,9 @@ public static class CardPresenter
     private const int MaxPromptInTitle = 60;
     private const int MaxPromptInYouLine = 140;
 
-    public static PermissionCardText Present(PermissionCard card, DateTimeOffset now)
+    /// <param name="maxRemember">How many "allow and remember" buttons to offer, in the agent's order. The island shows
+    /// one (several would all read "Always Allow (Bash)"); the panel lists them all with their full labels.</param>
+    public static PermissionCardText Present(PermissionCard card, DateTimeOffset now, int maxRemember = int.MaxValue)
     {
         var permission = card.Permission;
         var tool = permission.ToolName;
@@ -59,7 +61,7 @@ public static class CardPresenter
             new(PermissionActionKind.Deny, "No"),
             new(PermissionActionKind.Allow, "Yes"),
         };
-        for (var i = 0; i < permission.Suggestions.Count; i++)
+        for (var i = 0; i < Math.Min(permission.Suggestions.Count, Math.Max(0, maxRemember)); i++)
             actions.Add(new PermissionAction(PermissionActionKind.Remember, permission.Suggestions[i].ButtonLabel, i));
 
         return new PermissionCardText(

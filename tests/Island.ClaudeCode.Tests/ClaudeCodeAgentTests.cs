@@ -83,8 +83,50 @@ public class ClaudeCodeAgentTests
         var options = Assert.IsType<PermissionRequested>(_agent.Translate(payload, "r")).Permission.Suggestions;
 
         Assert.Collection(options,
-            o => Assert.Equal(("Always Allow (Bash)", "Allow + remember Bash(node -e ' *)", AddRules), (o.ButtonLabel, o.Detail, o.Payload)),
-            o => Assert.Equal(("Allow + add folder", "Allow + add folder C:\\proj", AddDirectories), (o.ButtonLabel, o.Detail, o.Payload)));
+            o => Assert.Equal(("Always Allow (Bash)", "Allow + remember Bash(node -e ' *) in this project (just you)", AddRules), (o.ButtonLabel, o.Detail, o.Payload)),
+            o => Assert.Equal(("Allow + add folder", "Allow + add folder C:\\proj for this session", AddDirectories), (o.ButtonLabel, o.Detail, o.Payload)));
+    }
+
+    [Theory]
+    [InlineData("session", "for this session")]
+    [InlineData("localSettings", "in this project (just you)")]
+    [InlineData("projectSettings", "in this project (shared)")]
+    [InlineData("userSettings", "in all projects")]
+    [InlineData("somewhereNew", "(somewhereNew)")]
+    public void Suggestions_that_differ_only_in_where_they_are_saved_get_different_labels(string destination, string where)
+    {
+        var raw = "{\"type\":\"addRules\",\"rules\":[{\"toolName\":\"PowerShell\",\"ruleContent\":\"Start-Sleep:*\"}],\"destination\":\"" + destination + "\"}";
+
+        Assert.Equal("Allow + remember PowerShell(Start-Sleep:*) " + where, SuggestionChoice.FromRaw(new[] { raw })[0].Label);
+    }
+
+    [Fact]
+    public void A_permission_request_and_its_PostToolUse_share_a_call_key_that_other_calls_do_not()
+    {
+        var request = Assert.IsType<PermissionRequested>(_agent.Translate(
+            Payloads.Hook("PermissionRequest", Payloads.BashPermission("npm test")), "r"));
+        var same = Assert.IsType<ToolProceeded>(_agent.Translate(Payloads.Hook("PostToolUse",
+            ",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"npm test\",\"timeout\":120000},\"tool_use_id\":\"t1\""), "p"));
+        var other = Assert.IsType<ToolProceeded>(_agent.Translate(Payloads.Hook("PostToolUse",
+            ",\"tool_name\":\"Read\",\"tool_input\":{\"file_path\":\"C:\\\\a.cs\"}"), "p"));
+
+        Assert.NotNull(request.Permission.CallKey);
+        Assert.Equal(request.Permission.CallKey, same.CallKey); // extra input fields (timeout) do not matter
+        Assert.NotEqual(request.Permission.CallKey, other.CallKey);
+    }
+
+    [Fact]
+    public void A_question_and_its_answered_PostToolUse_share_a_call_key()
+    {
+        var asked = """{"questions":[{"question":"Which one?","options":[{"label":"A"}]}]}""";
+        var answered = """{"questions":[{"question":"Which one?","options":[{"label":"A"}]}],"answers":{"Which one?":"A"}}""";
+
+        var question = Assert.IsType<InputRequested>(_agent.Translate(
+            Payloads.Hook("PreToolUse", ",\"tool_name\":\"AskUserQuestion\",\"tool_input\":" + asked), "q"));
+        var done = Assert.IsType<ToolProceeded>(_agent.Translate(
+            Payloads.Hook("PostToolUse", ",\"tool_name\":\"AskUserQuestion\",\"tool_input\":" + answered), "p"));
+
+        Assert.Equal(question.CallKey, done.CallKey);
     }
 
     [Fact]
@@ -115,6 +157,61 @@ public class ClaudeCodeAgentTests
         Assert.True(echo.EchoesPermission);
         Assert.False(idle.EchoesPermission);
         Assert.Equal("Waiting", idle.Text);
+    }
+
+    [Fact]
+    public void A_question_from_Claude_becomes_input_requested_with_its_options()
+    {
+        var input = """
+            {"questions":[{"question":"What should I do next?","header":"Next","multiSelect":false,
+              "options":[{"label":"Build it","description":"x"},{"label":"Commit first","description":"y"}]}]}
+            """;
+
+        var evt = Assert.IsType<InputRequested>(_agent.Translate(
+            Payloads.Hook("PreToolUse", ",\"tool_name\":\"AskUserQuestion\",\"tool_input\":" + input), "q"));
+
+        Assert.Equal("What should I do next?\n• Build it\n• Commit first", evt.Text);
+        Assert.False(evt.EchoesPermission);
+        Assert.Equal("PreToolUse(AskUserQuestion)", evt.Source);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("{}")]
+    [InlineData("{\"questions\":[{\"header\":\"no question\"}]}")]
+    [InlineData("{\"questions\":\"oops\"}")]
+    public void A_question_in_an_unexpected_shape_still_shows_a_card(string? input)
+    {
+        var extra = ",\"tool_name\":\"AskUserQuestion\"" + (input is null ? "" : ",\"tool_input\":" + input);
+
+        var evt = Assert.IsType<InputRequested>(_agent.Translate(Payloads.Hook("PreToolUse", extra), "q"));
+
+        Assert.Equal("Claude has a question for you", evt.Text);
+    }
+
+    [Fact]
+    public void PreToolUse_for_other_tools_shows_nothing()
+    {
+        Assert.IsType<SessionActivity>(_agent.Translate(Payloads.Hook("PreToolUse", ",\"tool_name\":\"Bash\""), "p"));
+    }
+
+    [Fact]
+    public void Several_questions_are_separated_by_a_blank_line_and_long_text_is_cut()
+    {
+        var two = """{"questions":[{"question":"A?","options":[{"label":"1"}]},{"question":"B?"}]}""";
+        var huge = "{\"questions\":[{\"question\":\"" + new string('x', 1000) + "\"}]}";
+
+        Assert.Equal("A?\n• 1\n\nB?", QuestionText.From(two));
+        Assert.Equal(400, QuestionText.From(huge)!.Length);
+    }
+
+    [Theory]
+    [InlineData("PostToolUse", ",\"tool_name\":\"Bash\"", "PostToolUse(Bash)")]
+    [InlineData("Notification", ",\"notification_type\":\"idle_prompt\",\"message\":\"secret\"", "Notification(idle_prompt)")]
+    [InlineData("Stop", "", "Stop")]
+    public void Source_names_the_event_but_never_its_content(string hookEvent, string extra, string expected)
+    {
+        Assert.Equal(expected, _agent.Translate(Payloads.Hook(hookEvent, extra), "s")!.Source);
     }
 
     [Fact]

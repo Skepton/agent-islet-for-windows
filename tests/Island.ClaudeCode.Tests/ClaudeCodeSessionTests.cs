@@ -32,10 +32,22 @@ public class ClaudeCodeSessionTests
         var store = new SessionStore();
         Feed(store, Payloads.Hook("PermissionRequest", Payloads.BashPermission("x")), T0, "req1");
 
-        var effects = Feed(store, Payloads.Hook("PostToolUse", ",\"tool_name\":\"Bash\""), T0.AddSeconds(3));
+        var effects = Feed(store, Payloads.Hook("PostToolUse", ",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"x\"}"), T0.AddSeconds(3));
 
         Assert.Equal(PermissionOutcome.ResolvedElsewhere, Assert.Single(effects.OfType<PermissionCleared>()).Outcome);
         Assert.Equal(SessionPhase.Working, store.Snapshot().Single().Phase);
+    }
+
+    [Fact]
+    public void A_parallel_tool_finishing_does_not_dismiss_a_waiting_card()
+    {
+        var store = new SessionStore();
+        Feed(store, Payloads.Hook("PermissionRequest", Payloads.BashPermission("git commit")), T0, "req1");
+
+        var effects = Feed(store, Payloads.Hook("PostToolUse", ",\"tool_name\":\"Read\",\"tool_input\":{\"file_path\":\"C:\\\\a.cs\"}"), T0.AddSeconds(1));
+
+        Assert.Empty(effects.OfType<PermissionCleared>());
+        Assert.Equal("req1", store.Snapshot().Single().Pending!.RequestId);
     }
 
     [Fact]

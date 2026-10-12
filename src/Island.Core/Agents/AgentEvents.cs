@@ -20,6 +20,9 @@ public abstract record AgentEvent
 
     /// <summary><see cref="ProjectRef.Key"/> of the session's project folder; filled in by the hub.</summary>
     public string? Project { get; init; }
+
+    /// <summary>The agent's own name for what happened ("Notification(idle_prompt)"), for the debug log. Never payload content.</summary>
+    public string? Source { get; init; }
 }
 
 /// <summary>A new or resumed session.</summary>
@@ -38,8 +41,15 @@ public sealed record PermissionRequested : AgentEvent
     public required PendingPermission Permission { get; init; }
 }
 
-/// <summary>The agent moved past a tool call (it ran, or was denied elsewhere), so any pending request was answered outside the island.</summary>
-public sealed record ToolProceeded : AgentEvent;
+/// <summary>The agent moved past a tool call (it ran, or was denied elsewhere), so its pending request was answered outside the island.</summary>
+public sealed record ToolProceeded : AgentEvent
+{
+    /// <summary>
+    /// Which call ended (see <see cref="PendingPermission.CallKey"/>). Only the request with the same key closes, so a
+    /// parallel tool finishing does not dismiss a card that is still waiting. Null closes every pending request.
+    /// </summary>
+    public string? CallKey { get; init; }
+}
 
 /// <summary>The agent is waiting for the user (a question, an idle prompt, ...).</summary>
 public sealed record InputRequested : AgentEvent
@@ -52,6 +62,12 @@ public sealed record InputRequested : AgentEvent
     /// showing or was just answered.
     /// </summary>
     public bool EchoesPermission { get; init; }
+
+    /// <summary>
+    /// The tool call this question belongs to, when it is one (see <see cref="ToolProceeded.CallKey"/>). The notice then
+    /// only clears when that call ends, not when a parallel tool finishes.
+    /// </summary>
+    public string? CallKey { get; init; }
 }
 
 /// <summary>The agent finished its turn.</summary>

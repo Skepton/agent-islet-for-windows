@@ -65,7 +65,7 @@ public sealed class InstallerTests : IDisposable
         var installed = HookSettings.Install(original, Exe);
         var uninstalled = HookSettings.Uninstall(installed);
 
-        Assert.Equal(7, HookSettings.CountOurs(installed));
+        Assert.Equal(8, HookSettings.CountOurs(installed));
         Assert.True(HookSettings.SameJson(original, uninstalled), uninstalled);
     }
 
@@ -74,15 +74,23 @@ public sealed class InstallerTests : IDisposable
     {
         var installed = HookSettings.Install(OnlyModel, Exe);
 
-        foreach (var (eventName, timeout) in HookSettings.Events)
+        foreach (var (eventName, timeout, _) in HookSettings.Events)
         {
             var entry = Assert.Single(Entries(installed, eventName));
             Assert.Equal("command", (string?)entry["type"]);
             Assert.Equal("\"C:/Users/Some One/AppData/Local/ClaudeCodeIsland/bin/island-hook.exe\" hook", (string?)entry["command"]);
             Assert.Equal(timeout, (int?)entry["timeout"]);
         }
-        Assert.Null(JsonNode.Parse(installed)!["hooks"]!["PreToolUse"]);
         Assert.Equal("opus", (string?)JsonNode.Parse(installed)!["model"]);
+    }
+
+    [Fact]
+    public void PreToolUse_is_only_registered_for_AskUserQuestion_and_other_events_have_no_matcher()
+    {
+        var hooks = JsonNode.Parse(HookSettings.Install(OnlyModel, Exe))!["hooks"]!.AsObject();
+
+        Assert.Equal("AskUserQuestion", (string?)hooks["PreToolUse"]![0]!["matcher"]);
+        Assert.All(hooks.Where(e => e.Key != "PreToolUse"), e => Assert.Null(e.Value![0]!["matcher"]));
     }
 
     [Fact]
@@ -93,7 +101,7 @@ public sealed class InstallerTests : IDisposable
         var twice = HookSettings.Install(once, Exe);
 
         Assert.True(HookSettings.SameJson(once, twice));
-        Assert.Equal(7, HookSettings.CountOurs(twice));
+        Assert.Equal(8, HookSettings.CountOurs(twice));
     }
 
     [Fact]
@@ -103,7 +111,7 @@ public sealed class InstallerTests : IDisposable
 
         var moved = HookSettings.Install(old, Exe);
 
-        Assert.Equal(7, HookSettings.CountOurs(moved));
+        Assert.Equal(8, HookSettings.CountOurs(moved));
         Assert.DoesNotContain("D:/old", moved);
     }
 
@@ -171,7 +179,7 @@ public sealed class InstallerTests : IDisposable
         Assert.Equal(new byte[] { 0xEF, 0xBB, 0xBF }.Concat(Encoding.UTF8.GetBytes(OnlyModel)), File.ReadAllBytes(change.BackupPath!));
         var written = File.ReadAllBytes(path);
         Assert.NotEqual(0xEF, written[0]);
-        Assert.Equal(7, HookSettings.CountOurs(Encoding.UTF8.GetString(written)));
+        Assert.Equal(8, HookSettings.CountOurs(Encoding.UTF8.GetString(written)));
         Assert.False(File.Exists(path + ".tmp"));
     }
 
@@ -200,7 +208,7 @@ public sealed class InstallerTests : IDisposable
 
         Assert.NotEqual(install.BackupPath, uninstall.BackupPath);
         Assert.Equal(OnlyModel, File.ReadAllText(install.BackupPath!)); // the original survives
-        Assert.Equal(7, HookSettings.CountOurs(File.ReadAllText(uninstall.BackupPath!)));
+        Assert.Equal(8, HookSettings.CountOurs(File.ReadAllText(uninstall.BackupPath!)));
     }
 
     [Fact]
@@ -253,6 +261,6 @@ public sealed class InstallerTests : IDisposable
 
         Assert.True(change.Changed);
         Assert.Null(change.BackupPath);
-        Assert.Equal(7, HookSettings.CountOurs(File.ReadAllText(path)));
+        Assert.Equal(8, HookSettings.CountOurs(File.ReadAllText(path)));
     }
 }

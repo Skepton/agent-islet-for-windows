@@ -44,7 +44,7 @@ public class FixtureTests
 
         var choice = Assert.Single(SuggestionChoice.FromRaw(payload.PermissionSuggestionsJson));
         Assert.Equal("addRules", choice.Type);
-        Assert.Equal("Allow + remember Bash(node -e ' *)", choice.Label);
+        Assert.Equal("Allow + remember Bash(node -e ' *) in this project (just you)", choice.Label);
     }
 
     [Fact]

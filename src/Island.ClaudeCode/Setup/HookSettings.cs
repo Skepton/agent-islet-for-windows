@@ -14,20 +14,25 @@ public static class HookSettings
 {
     public const string ExeName = "island-hook.exe";
 
+    /// <summary>One hook entry: event, timeout in seconds, and a tool matcher (null = every tool).</summary>
+    public sealed record HookEvent(string Event, int TimeoutSeconds, string? Matcher = null);
+
     /// <summary>
-    /// The events the island listens to, with each hook's timeout in seconds. PermissionRequest waits for an answer
-    /// (the forwarder gives up at 540 s, before this). The others return in well under a second; their timeout only
-    /// bounds a hung forwarder. SessionEnd has a tiny budget in Claude Code. PreToolUse is deliberately not used.
+    /// The events the island listens to. PermissionRequest waits for an answer (the forwarder gives up at 540 s,
+    /// before this). The others return in well under a second; their timeout only bounds a hung forwarder.
+    /// SessionEnd has a tiny budget in Claude Code. PreToolUse runs before every tool call, so it is registered for
+    /// AskUserQuestion only (Claude's questions fire no other event; see docs/findings.md).
     /// </summary>
-    public static readonly IReadOnlyList<(string Event, int TimeoutSeconds)> Events =
+    public static readonly IReadOnlyList<HookEvent> Events =
     [
-        ("SessionStart", 10),
-        ("UserPromptSubmit", 10),
-        ("PermissionRequest", 600),
-        ("PostToolUse", 10),
-        ("Notification", 10),
-        ("Stop", 10),
-        ("SessionEnd", 2),
+        new("SessionStart", 10),
+        new("UserPromptSubmit", 10),
+        new("PermissionRequest", 600),
+        new("PreToolUse", 10, "AskUserQuestion"),
+        new("PostToolUse", 10),
+        new("Notification", 10),
+        new("Stop", 10),
+        new("SessionEnd", 2),
     ];
 
     /// <summary>Claude Code runs hooks under Git Bash on Windows: forward slashes, quoted (paths may contain spaces).</summary>
@@ -55,7 +60,7 @@ public static class HookSettings
         if (root["hooks"] is null) root["hooks"] = hooks;
 
         var command = CommandFor(exePath);
-        foreach (var (name, timeout) in Events)
+        foreach (var (name, timeout, matcher) in Events)
         {
             var groups = hooks[name] switch
             {
@@ -67,7 +72,10 @@ public static class HookSettings
 
             // JsonNode-typed construction: the generic Add<T> overloads are not trim-safe.
             var entry = new JsonObject { ["type"] = "command", ["command"] = command, ["timeout"] = timeout };
-            groups.Add((JsonNode)new JsonObject { ["hooks"] = new JsonArray(entry) });
+            var group = new JsonObject();
+            if (matcher is not null) group["matcher"] = matcher;
+            group["hooks"] = new JsonArray(entry);
+            groups.Add((JsonNode)group);
         }
 
         return Write(root, settingsJson);

@@ -46,5 +46,36 @@ public static class ToolSummary
         _ => "",
     };
 
+    /// <summary>
+    /// Identifies a tool call across its PermissionRequest / PreToolUse and its PostToolUse, which share no id. Built
+    /// from the tool and its main argument (command, file, URL, query), which Claude Code repeats unchanged; other
+    /// input fields may differ (defaults filled in, answers added). AskUserQuestion is keyed by its first question.
+    /// Kept in memory only.
+    /// </summary>
+    public static string CallKey(string? toolName, string? inputJson)
+    {
+        var tool = toolName ?? "";
+        if (string.IsNullOrEmpty(inputJson)) return tool;
+        try
+        {
+            using var doc = JsonDocument.Parse(inputJson);
+            var root = doc.RootElement;
+            var main = tool == "AskUserQuestion"
+                ? FirstQuestion(root)
+                : JsonUtil.Str(root, "command") ?? JsonUtil.Str(root, "file_path") ?? JsonUtil.Str(root, "notebook_path")
+                    ?? JsonUtil.Str(root, "url") ?? JsonUtil.Str(root, "query") ?? JsonUtil.Str(root, "pattern");
+            return tool + "\n" + (main ?? root.GetRawText());
+        }
+        catch (JsonException)
+        {
+            return tool + "\n" + inputJson;
+        }
+    }
+
+    private static string? FirstQuestion(JsonElement root) =>
+        JsonUtil.Prop(root, "questions") is { ValueKind: JsonValueKind.Array } questions
+            ? questions.EnumerateArray().Select(q => JsonUtil.Str(q, "question")).FirstOrDefault(q => q is not null)
+            : null;
+
     private static bool IsShell(string toolName) => toolName is "Bash" or "PowerShell";
 }
