@@ -152,8 +152,8 @@ public class CardPresenterTests
 
         var strip = CardPresenter.PresentStrip(snapshot, T0);
 
-        Assert.Equal(new UsageStripItem("5h", "72%", 1, "1h 10m"), strip[0]);
-        Assert.Equal(new UsageStripItem("7d", "55%", 0, "2d"), strip[1]);
+        Assert.Equal(new UsageStripItem("5h", "72%", 1, "1h 10m", 72), strip[0]);
+        Assert.Equal(new UsageStripItem("7d", "55%", 0, "2d", 55), strip[1]);
     }
 
     [Fact]

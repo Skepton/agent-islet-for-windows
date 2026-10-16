@@ -168,25 +168,23 @@ public sealed class OverlayViewModel : ObservableObject
     private CardViewModel? _current;
     private string _pagerText = "";
     private bool _hasPager;
-    private string _footerText = "";
-    private bool _hasFooter;
     private bool _hasStrip;
     private UsageSnapshot? _usage;
 
     private bool _isCollapsed;
     private string _pillText = "";
+    private bool _usageRevealed;
+    private UsageBarMode _usageBar = UsageBarMode.ThinBar;
 
-    public OverlayViewModel(Action previous, Action next, Action showAll, Action expand)
+    public OverlayViewModel(Action previous, Action next, Action expand)
     {
         Previous = new RelayCommand(previous);
         Next = new RelayCommand(next);
-        ShowAll = new RelayCommand(showAll);
         Expand = new RelayCommand(expand);
     }
 
     public ICommand Previous { get; }
     public ICommand Next { get; }
-    public ICommand ShowAll { get; }
     public ICommand Expand { get; }
 
     /// <summary>True while the island is shrunk to the small pill (something still waits, but the user has not looked for a while).</summary>
@@ -197,6 +195,7 @@ public sealed class OverlayViewModel : ObservableObject
         {
             if (!Set(ref _isCollapsed, value)) return;
             Raise(nameof(IsExpanded));
+            RaiseLayout();
         }
     }
 
@@ -236,22 +235,39 @@ public sealed class OverlayViewModel : ObservableObject
         private set => Set(ref _hasPager, value);
     }
 
-    public string FooterText
+    /// <summary>True while the usage numbers are on show (they changed, or the pointer rests on the bar).</summary>
+    public bool UsageRevealed
     {
-        get => _footerText;
-        private set => Set(ref _footerText, value);
+        get => _usageRevealed;
+        set
+        {
+            if (Set(ref _usageRevealed, value)) RaiseLayout();
+        }
     }
 
-    public bool HasFooter
+    public UsageBarMode UsageBar
     {
-        get => _hasFooter;
-        private set => Set(ref _hasFooter, value);
+        get => _usageBar;
+        set
+        {
+            if (Set(ref _usageBar, value)) RaiseLayout();
+        }
     }
 
-    public bool HasContent => Current is not null || HasStrip;
+    /// <summary>The usage numbers as the island's only content (a card always takes the place of the strip).</summary>
+    public bool ShowStrip => HasStrip && Current is null && UsageRevealed;
 
-    /// <summary>True when only the usage strip is visible, so the window can let clicks pass through.</summary>
-    public bool IsStripOnly => Current is null && HasStrip;
+    /// <summary>The thin bar that stands for the usage numbers while they are hidden.</summary>
+    public bool IsHairline => HasStrip && Current is null && !UsageRevealed && UsageBar == UsageBarMode.ThinBar;
+
+    public bool PillVisible => IsCollapsed && Current is not null;
+
+    public bool PanelVisible => !IsHairline && (IsExpanded || Current is null) && (Current is not null || ShowStrip);
+
+    public bool HasContent => Current is not null || ShowStrip || IsHairline;
+
+    /// <summary>True when no card shows, so the window can let clicks pass through to whatever is underneath.</summary>
+    public bool IsStripOnly => Current is null && (ShowStrip || IsHairline);
 
     public void SetUsage(UsageSnapshot? snapshot, DateTimeOffset now)
     {
@@ -259,11 +275,21 @@ public sealed class OverlayViewModel : ObservableObject
         RefreshStrip(now);
     }
 
+    private void RaiseLayout()
+    {
+        Raise(nameof(ShowStrip));
+        Raise(nameof(IsHairline));
+        Raise(nameof(PillVisible));
+        Raise(nameof(PanelVisible));
+        Raise(nameof(HasContent));
+        Raise(nameof(IsStripOnly));
+    }
+
     /// <summary>
     /// Shows <paramref name="card"/> (null for none). A card with the same id is kept so its controls don't flicker;
     /// <paramref name="create"/> is only called for a new one.
     /// </summary>
-    public void Show(OverlaySnapshot snapshot, int sessionCount, DateTimeOffset now, Func<OverlayCard, CardViewModel> create)
+    public void Show(OverlaySnapshot snapshot, DateTimeOffset now, Func<OverlayCard, CardViewModel> create)
     {
         if (snapshot.Current is null)
         {
@@ -281,12 +307,9 @@ public sealed class OverlayViewModel : ObservableObject
         HasPager = snapshot.Cards.Count > 1;
         PagerText = HasPager ? $"{snapshot.Index + 1} of {snapshot.Cards.Count}" : "";
         PillText = snapshot.Cards.Count(c => IslandCollapse.IsWaiting(c.Kind)).ToString();
-        HasFooter = sessionCount > 1;
-        FooterText = HasFooter ? $"Show all {sessionCount} sessions" : "";
         RefreshStrip(now);
 
-        Raise(nameof(HasContent));
-        Raise(nameof(IsStripOnly));
+        RaiseLayout();
     }
 
     public void RefreshStrip(DateTimeOffset now)
@@ -298,8 +321,6 @@ public sealed class OverlayViewModel : ObservableObject
             foreach (var item in items) Strip.Add(item);
         }
         HasStrip = items.Count > 0;
-        Raise(nameof(HasContent));
-        Raise(nameof(IsStripOnly));
+        RaiseLayout();
     }
-
 }

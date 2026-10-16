@@ -41,7 +41,8 @@ public sealed record UsageCardText(string Title, double Percent, int Level, stri
 public sealed record PermissionAnswer(PermissionVerdict? Verdict, PermissionOutcome Outcome, string Log);
 
 /// <param name="Level">See <see cref="UsageFormat.Level"/>.</param>
-public sealed record UsageStripItem(string Label, string PercentText, int Level, string Countdown);
+/// <param name="Percent">Whole number 0-100, the same value as <paramref name="PercentText"/>; fills the thin bar.</param>
+public sealed record UsageStripItem(string Label, string PercentText, int Level, string Countdown, double Percent = 0);
 
 /// <summary>Turns overlay cards into the exact strings the window shows, so the WPF side only binds.</summary>
 public static class CardPresenter
@@ -113,7 +114,8 @@ public static class CardPresenter
                 UsageFormat.WindowLabel(w.Id),
                 $"{Math.Round(Math.Clamp(w.Percent, 0, 100)):0}%",
                 UsageFormat.Level(w.Percent),
-                UsageFormat.Countdown(w.ResetsAt - now)))
+                UsageFormat.Countdown(w.ResetsAt - now),
+                Math.Round(Math.Clamp(w.Percent, 0, 100))))
             .ToList();
 
     /// <summary>What a click on <paramref name="action"/> sends to the agent.</summary>

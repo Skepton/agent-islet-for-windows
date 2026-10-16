@@ -11,10 +11,10 @@ Inspired by [Open Island](https://github.com/Octane0411/open-vibe-island) for ma
 - **Permission requests.** "Claude wants to run Bash: `npm test`". Answer **No**, **Yes** or **Always Allow** from the island, or leave it and answer in your terminal or VS Code as usual.
 - **Waiting for you.** When a session asks a question or sits idle waiting for input.
 - **Finished.** A short summary when a turn ends (it hides itself after a few seconds).
-- **Usage.** Your 5-hour and 7-day limits as a slim strip, plus a popup every 5 % (opt-in, see Privacy).
+- **Usage.** Your 5-hour and 7-day limits, plus a popup every 5 % (opt-in, see Privacy). A thin bar at the top of the screen shows one gauge per limit; rest the pointer on it to read the numbers, or wait: they drop down for a few seconds whenever they change. Turn it on, and choose "thin bar" or "only when the numbers change", in the panel's Usage tab.
 - **Several sessions at once.** Cards from every session queue up ("1 of 3"), urgent ones first, labelled by project folder.
 
-The island never takes keyboard focus, so it won't interrupt what you're typing. After a few seconds a waiting card shrinks to a small black pill with a count; hover over it or click it to open it again.
+The island never takes keyboard focus, so it won't interrupt what you're typing. A waiting card stays open for 20 seconds (8 after the pointer leaves it), then shrinks to a small black pill with a count; hover over it or click it to open it again. The request itself is never dropped by that: it waits until you answer it or Claude Code moves on.
 
 **Control panel.** Click the tray icon for a dark panel in the same style: every session and its status (answer waiting requests there too), the projects you chose to show or ignore, and a debug log.
 
@@ -25,7 +25,7 @@ Early and in active development. The island, the hook forwarder, the installer a
 ## Use it every day
 
 ```powershell
-powershell -File scripts\install-local.ps1               # add -PollUsage to turn on usage tracking
+powershell -File scripts\install-local.ps1               # usage tracking is switched on in the panel's Usage tab
 ```
 
 This builds the island into `%LOCALAPPDATA%\ClaudeCodeIsland`, adds its hooks to Claude Code's user settings (`~/.claude/settings.json`, backed up first, nothing else touched) and starts it in the tray. Already-running Claude Code sessions pick it up on their next event.
@@ -61,7 +61,7 @@ powershell -File scripts\publish-hook.ps1                # terminal 2: build the
 
 Click a button on the island and the forwarder prints exactly what Claude Code would receive.
 
-App flags: `--demo` (fake cards), `--tray` (start hidden in the tray), `--poll-usage` (turn on usage tracking), `--allow-all-projects` (skip the per-project question; for testing).
+App flags: `--demo` (fake cards), `--tray` (start hidden in the tray), `--poll-usage` (turn on usage tracking and remember it in `config.json`, as the Usage tab's switch does), `--allow-all-projects` (skip the per-project question; for testing).
 
 ## How it works
 
@@ -76,7 +76,7 @@ Claude Code runs a hook (a command you register in its settings) on events like 
 
 - **Fail-open.** If the island isn't running, crashes or doesn't answer, the hook prints nothing and Claude Code behaves exactly as it would without it.
 - **Local only.** Events travel over a named pipe restricted to your user. Prompts and commands are shown on cards and kept in memory only. Nothing from your sessions is written to disk except the folder paths of projects you chose to show or ignore.
-- **Usage tracking is opt-in.** It reads Claude Code's own sign-in token (read-only: never stored, logged or refreshed) and calls the same usage endpoint Claude Code's `/status` uses, on `api.anthropic.com` only. That endpoint is unofficial and may change.
+- **Usage tracking is opt-in** (the switch in the panel's Usage tab, off by default; `config.json` in the data folder records it and when you agreed). It reads Claude Code's own sign-in token (read-only: never stored, logged or refreshed) and calls the same usage endpoint Claude Code's `/status` uses, on `api.anthropic.com` only. That endpoint is unofficial and may change.
 - The installer backs up your Claude Code settings, touches only its own entries, and uninstalls cleanly. Try it on a copy first with `island-hook.exe install --settings <copy> --dry-run`.
 
 ## Project layout

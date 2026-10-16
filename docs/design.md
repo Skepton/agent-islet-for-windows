@@ -22,7 +22,7 @@ Direction from the user: take inspiration from Open Island's look, **font sizes 
      - `No` → dark grey `#22272D`
      - `Yes` → orange `#E58C36`
      - `Always Allow (Bash)` → red `#BE3D30` (our "remember" suggestion; for an `addDirectories` suggestion the label is `Allow + add folder`).
-3. **Footer:** `Show all N sessions` (**11 px**, grey, centred) when more than one session is active.
+3. **Footer:** the reference has `Show all N sessions`. **We dropped it** (user's call, session 4): the control panel's Sessions tab (tray icon) already lists every session.
 
 Our extra control, **Answer in terminal**, is a small text link under the buttons (not in the reference).
 
@@ -60,7 +60,6 @@ Our extra control, **Answer in terminal**, is a small text link under the button
 | chip: editor | `CLAUDE_CODE_ENTRYPOINT` / `VSCODE_PID` in the hook's environment | forwarder must send it in the frame (small protocol addition; also feeds the later "focus the right window" feature) |
 | chip: age | session `LastSeen` / request time | have |
 | usage strip | `UsageMonitor` latest snapshot (WP5, done) | reset countdown formatting |
-| `Show all N sessions` | session store | have |
 
 ## What not to do
 - Don't copy Open Island's code, artwork, icons or sounds into this repo until the licence question is settled, and don't use its name or logo.

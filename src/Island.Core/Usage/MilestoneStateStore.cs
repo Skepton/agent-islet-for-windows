@@ -24,6 +24,9 @@ public static class IslandPaths
 
     /// <summary>Which project folders the user chose to show or ignore.</summary>
     public static string ProjectsFile => Path.Combine(DataDir, "projects.json");
+
+    /// <summary>The user's settings (usage tracking on/off and how it shows).</summary>
+    public static string ConfigFile => Path.Combine(DataDir, "config.json");
 }
 
 /// <summary>

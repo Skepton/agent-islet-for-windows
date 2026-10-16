@@ -189,7 +189,7 @@
     <!-- Collapsed: a small black pill with a bell and how many things still wait. Hover or click opens it again. -->
     <Border x:Name="Pill" Background="{StaticResource IslandBlackBrush}" CornerRadius="0,0,16,16" Padding="14,6,14,7"
             HorizontalAlignment="Center" VerticalAlignment="Top" Cursor="Hand" ToolTip="Show"
-            Visibility="{Binding IsCollapsed, Converter={StaticResource BoolToVisibility}}">
+            Visibility="{Binding PillVisible, Converter={StaticResource BoolToVisibility}}">
         <Border.InputBindings>
             <MouseBinding MouseAction="LeftClick" Command="{Binding Expand}" />
         </Border.InputBindings>
@@ -200,12 +200,29 @@
         </StackPanel>
     </Border>
 
+    <!-- Usage, hidden: a thin bar with one slim gauge per limit. Hover it (or wait for the numbers to change) to read them. -->
+    <Border x:Name="Hairline" Background="{StaticResource IslandBlackBrush}" CornerRadius="0,0,4,4" Padding="8,0,8,3"
+            HorizontalAlignment="Center" VerticalAlignment="Top"
+            Visibility="{Binding IsHairline, Converter={StaticResource BoolToVisibility}}">
+        <ItemsControl ItemsSource="{Binding Strip}" Focusable="False" IsHitTestVisible="False">
+            <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate><StackPanel Orientation="Horizontal" /></ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                    <ProgressBar Value="{Binding Percent, Mode=OneWay}" Style="{StaticResource LevelBar}"
+                                 Width="64" Height="3" Margin="3,0" />
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+    </Border>
+
     <Border x:Name="Panel" Background="{StaticResource IslandBlackBrush}" CornerRadius="0,0,20,20"
-            Visibility="{Binding IsExpanded, Converter={StaticResource BoolToVisibility}}">
+            Visibility="{Binding PanelVisible, Converter={StaticResource BoolToVisibility}}">
         <StackPanel Margin="10,0,10,10">
-            <!-- Usage strip: first row, and the whole island when nothing needs you. -->
+            <!-- Usage strip: the whole island when nothing needs you and the numbers are on show. -->
             <StackPanel Orientation="Horizontal" Margin="6,8,6,6"
-                        Visibility="{Binding HasStrip, Converter={StaticResource BoolToVisibility}}">
+                        Visibility="{Binding ShowStrip, Converter={StaticResource BoolToVisibility}}">
             <TextBlock Text="Claude" Style="{StaticResource SecondaryText}" FontWeight="SemiBold" Margin="0,0,14,0" />
             <ItemsControl ItemsSource="{Binding Strip}" Focusable="False">
                 <ItemsControl.ItemsPanel>
@@ -231,10 +248,6 @@
                 <TextBlock Text="{Binding PagerText}" Style="{StaticResource SecondaryText}" VerticalAlignment="Center" Margin="6,0" />
                 <Button Content="›" Command="{Binding Next}" Style="{StaticResource LinkButton}" FontSize="16" />
             </StackPanel>
-
-            <Button Content="{Binding FooterText}" Command="{Binding ShowAll}" Style="{StaticResource LinkButton}"
-                    HorizontalAlignment="Center" Margin="0,2,0,0"
-                    Visibility="{Binding HasFooter, Converter={StaticResource BoolToVisibility}}" />
         </StackPanel>
     </Border>
     </Grid>

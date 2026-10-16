@@ -256,12 +256,12 @@ public class IslandCollapseTests
         new("s1", "my-app", new PendingPermission("r1", "Bash", "npm test", "default", Array.Empty<RememberOption>()));
 
     [Fact]
-    public void A_waiting_card_collapses_after_a_few_seconds_unless_the_pointer_is_over_it()
+    public void A_waiting_card_stays_open_long_enough_to_read_then_collapses_unless_the_pointer_is_over_it()
     {
         var snapshot = With(Permission);
 
-        Assert.False(IslandCollapse.ShouldCollapse(snapshot, T0, T0.AddSeconds(4), pointerOver: false));
-        Assert.True(IslandCollapse.ShouldCollapse(snapshot, T0, T0.AddSeconds(5), pointerOver: false));
+        Assert.False(IslandCollapse.ShouldCollapse(snapshot, T0, T0.AddSeconds(19), pointerOver: false));
+        Assert.True(IslandCollapse.ShouldCollapse(snapshot, T0, T0.AddSeconds(20), pointerOver: false));
         Assert.False(IslandCollapse.ShouldCollapse(snapshot, T0, T0.AddMinutes(5), pointerOver: true));
     }
 
@@ -272,10 +272,12 @@ public class IslandCollapseTests
         var project = With(new ProjectApprovalRequested(ProjectRef.From(@"C:\p")!));
         var finished = With(new NoticeShown("s1", "my-app", SessionPhase.Finished, "Done"));
 
-        Assert.True(IslandCollapse.ShouldCollapse(question, T0, T0.AddSeconds(6), false));
-        Assert.True(IslandCollapse.ShouldCollapse(project, T0, T0.AddSeconds(6), false));
-        Assert.False(IslandCollapse.ShouldCollapse(finished, T0, T0.AddSeconds(6), false));
-        Assert.False(IslandCollapse.ShouldCollapse(new OverlayState().Snapshot(), T0, T0.AddSeconds(6), false));
+        var later = T0.AddSeconds(25);
+
+        Assert.True(IslandCollapse.ShouldCollapse(question, T0, later, false));
+        Assert.True(IslandCollapse.ShouldCollapse(project, T0, later, false));
+        Assert.False(IslandCollapse.ShouldCollapse(finished, T0, later, false));
+        Assert.False(IslandCollapse.ShouldCollapse(new OverlayState().Snapshot(), T0, later, false));
     }
 
     [Fact]

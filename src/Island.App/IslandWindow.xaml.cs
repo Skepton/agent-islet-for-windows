@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
+using Island.Core;
 
 namespace Island.App;
 
@@ -51,6 +52,17 @@ public partial class IslandWindow : Window
         var style = NativeMethods.GetWindowLongPtr(_hwnd, NativeMethods.GWL_EXSTYLE).ToInt64();
         var updated = clickThrough ? style | NativeMethods.WS_EX_TRANSPARENT : style & ~NativeMethods.WS_EX_TRANSPARENT;
         if (updated != style) NativeMethods.SetWindowLongPtr(_hwnd, NativeMethods.GWL_EXSTYLE, new IntPtr(updated));
+    }
+
+    /// <summary>Where the window is on screen, in pixels, and its display scaling; null while it is hidden.</summary>
+    public (PixelRect Bounds, double Scale)? PixelBounds()
+    {
+        if (_hwnd == IntPtr.Zero || !IsVisible || !NativeMethods.GetWindowRect(_hwnd, out var r)) return null;
+
+        var monitor = NativeMethods.MonitorFromWindow(_hwnd, NativeMethods.MONITOR_DEFAULTTONEAREST);
+        uint dpi = 96;
+        if (NativeMethods.GetDpiForMonitor(monitor, NativeMethods.MDT_EFFECTIVE_DPI, out var dpiX, out _) == 0 && dpiX > 0) dpi = dpiX;
+        return (new PixelRect(r.Left, r.Top, r.Right, r.Bottom), dpi / 96.0);
     }
 
     /// <summary>Top-centre of the work area of the monitor that holds the foreground window.</summary>

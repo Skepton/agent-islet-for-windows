@@ -4,7 +4,7 @@ using Island.Core;
 
 namespace Island.App;
 
-public enum PanelTab { Sessions, Projects, Debug }
+public enum PanelTab { Sessions, Projects, Usage, Debug }
 
 /// <summary>Colour of a session's status dot.</summary>
 public enum StatusKind { Idle, Working, Attention, Done }
@@ -43,18 +43,24 @@ public sealed class PanelViewModel : ObservableObject
     private readonly IslandHub _hub;
     private readonly Func<string> _hookStatus;
     private PanelTab _tab = PanelTab.Sessions;
-    private string _usageText = "Usage: off (start the island with --poll-usage, or install with -PollUsage, to turn it on)";
+    private const string UsageOffText = "Usage tracking is off. Turn it on in the Usage tab.";
+
+    private string _usageText = UsageOffText;
     private string _hooksText = "";
 
     /// <param name="hookStatus">Describes whether the agent hooks are installed; re-read whenever the panel refreshes.</param>
-    public PanelViewModel(IslandHub hub, ProjectsViewModel projects, Func<string> hookStatus, string version, Action openDataFolder)
+    public PanelViewModel(
+        IslandHub hub, ProjectsViewModel projects, UsageSettingsViewModel usage, Func<string> hookStatus, string version, Action openDataFolder)
     {
         _hub = hub;
         _hookStatus = hookStatus;
         Projects = projects;
+        Usage = usage;
+        usage.Status = _usageText;
         Version = version;
         ShowSessions = new RelayCommand(() => Tab = PanelTab.Sessions);
         ShowProjects = new RelayCommand(() => Tab = PanelTab.Projects);
+        ShowUsage = new RelayCommand(() => Tab = PanelTab.Usage);
         ShowDebug = new RelayCommand(() => Tab = PanelTab.Debug);
         OpenDataFolder = new RelayCommand(openDataFolder);
         CopyLog = new RelayCommand(() => System.Windows.Clipboard.SetText(string.Join(Environment.NewLine, Events.Reverse())));
@@ -62,10 +68,12 @@ public sealed class PanelViewModel : ObservableObject
     }
 
     public ProjectsViewModel Projects { get; }
+    public UsageSettingsViewModel Usage { get; }
     public string Version { get; }
 
     public ICommand ShowSessions { get; }
     public ICommand ShowProjects { get; }
+    public ICommand ShowUsage { get; }
     public ICommand ShowDebug { get; }
     public ICommand OpenDataFolder { get; }
     public ICommand CopyLog { get; }
@@ -79,6 +87,7 @@ public sealed class PanelViewModel : ObservableObject
             if (!Set(ref _tab, value)) return;
             Raise(nameof(IsSessions));
             Raise(nameof(IsProjects));
+            Raise(nameof(IsUsage));
             Raise(nameof(IsDebug));
             Raise(nameof(PageTitle));
             if (value == PanelTab.Projects) Projects.Refresh();
@@ -97,6 +106,12 @@ public sealed class PanelViewModel : ObservableObject
         set { if (value) Tab = PanelTab.Projects; }
     }
 
+    public bool IsUsage
+    {
+        get => Tab == PanelTab.Usage;
+        set { if (value) Tab = PanelTab.Usage; }
+    }
+
     public bool IsDebug
     {
         get => Tab == PanelTab.Debug;
@@ -106,6 +121,7 @@ public sealed class PanelViewModel : ObservableObject
     public string PageTitle => Tab switch
     {
         PanelTab.Projects => "Projects",
+        PanelTab.Usage => "Usage",
         PanelTab.Debug => "Debug",
         _ => "Sessions",
     };
@@ -120,7 +136,10 @@ public sealed class PanelViewModel : ObservableObject
     public string UsageText
     {
         get => _usageText;
-        private set => Set(ref _usageText, value);
+        private set
+        {
+            if (Set(ref _usageText, value)) Usage.Status = value;
+        }
     }
 
     public string HooksText
@@ -144,6 +163,12 @@ public sealed class PanelViewModel : ObservableObject
         }
         UsageText = DescribeUsage(update);
     }
+
+    /// <summary>Usage tracking was switched on: say so until the first poll answers.</summary>
+    public void UsageStarted() => UsageText = "Usage tracking is on. Waiting for the first reading...";
+
+    /// <summary>Usage tracking was switched off.</summary>
+    public void UsageStopped() => UsageText = UsageOffText;
 
     /// <summary>Rebuilds the session cards (and their relative times) and re-reads the hook status.</summary>
     public void Refresh()

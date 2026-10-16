@@ -24,6 +24,9 @@ public partial class App : Application
     private DemoDriver? _demo;
     private HttpClient? _http;
     private UsageMonitor? _usage;
+    private CancellationTokenSource? _usageStop;
+    private ConfigStore? _configStore;
+    private IslandConfig _config = new();
     private bool _cleanedUp;
 
     protected override void OnStartup(StartupEventArgs e)
@@ -75,21 +78,31 @@ public partial class App : Application
             }),
             projects: projects);
 
+        _configStore = new ConfigStore();
+        _config = _configStore.Load();
+        if (e.Args.Contains("--poll-usage") && !_config.UsageEnabled)
+        {
+            // Passing the flag is the user's explicit yes; from here on the Usage tab controls it.
+            _config = _config with { UsageEnabled = true, UsageConsentAt = DateTimeOffset.UtcNow };
+            SaveConfig();
+        }
+
         _panel = new PanelViewModel(
             hub,
             new ProjectsViewModel(hub, askAboutProjects),
+            new UsageSettingsViewModel(_config, ApplyConfig),
             HookStatus,
             "Version " + (typeof(App).Assembly.GetName().Version?.ToString(3) ?? "?"),
             OpenDataFolder);
         _panelWindow = new PanelWindow(_panel);
-        _overlay = new OverlayController(hub, _panel.LogLine, () => ShowPanel(PanelTab.Sessions));
+        _overlay = new OverlayController(hub, _panel.LogLine);
         _tray = new TrayIconHost(() => ShowPanel(PanelTab.Sessions), () => ShowPanel(PanelTab.Projects), Quit);
 
         _shutdown = new CancellationTokenSource();
 
-        // Usage polling reads Claude Code's login token, so it only starts on an explicit opt-in.
-        // (The first-run consent dialog arrives with the settings UI; until then this flag is the opt-in.)
-        if (e.Args.Contains("--poll-usage")) StartUsagePolling(_shutdown.Token);
+        // Usage polling reads Claude Code's login token, so it only runs once the user has switched it on in the Usage tab.
+        _overlay.SetUsageBar(_config.UsageBar);
+        if (_config.UsageEnabled) StartUsagePolling();
 
         new IslandServer(pipeName, (frame, ct) =>
             {
@@ -129,20 +142,63 @@ public partial class App : Application
         base.OnExit(e);
     }
 
-    private void StartUsagePolling(CancellationToken shutdown)
+    /// <summary>Called by the Usage tab whenever the user changes a setting.</summary>
+    private void ApplyConfig(IslandConfig config)
     {
+        _config = config;
+        SaveConfig();
+        _overlay?.SetUsageBar(config.UsageBar);
+
+        if (config.UsageEnabled && _usage is null) StartUsagePolling();
+        else if (!config.UsageEnabled && _usage is not null) StopUsagePolling();
+    }
+
+    private void SaveConfig()
+    {
+        try
+        {
+            _configStore?.Save(_config);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            _panel?.LogLine($"could not save settings: {ex.Message}");
+        }
+    }
+
+    private void StartUsagePolling()
+    {
+        if (_shutdown is null) return;
+
         var store = new MilestoneStateStore();
         var engine = new MilestoneEngine(state: store.Load());
 
-        _http = new HttpClient();
+        _http ??= new HttpClient();
         var source = new OAuthUsageSource(_http, new OAuthCredentialsReader());
-        _usage = new UsageMonitor(source, engine, update => Dispatcher.InvokeAsync(() =>
+
+        UsageMonitor? monitor = null;
+        monitor = new UsageMonitor(source, engine, update => Dispatcher.InvokeAsync(() =>
         {
+            // A poll that finishes after the user switched usage off must not bring the numbers back.
+            if (!ReferenceEquals(_usage, monitor)) return;
             _panel?.ApplyUsage(update);
             _overlay?.OnUsage(update);
         }), store);
+        _usage = monitor;
+        _usageStop = CancellationTokenSource.CreateLinkedTokenSource(_shutdown.Token);
 
-        _ = _usage.RunAsync(shutdown);
+        _panel?.UsageStarted();
+        _ = monitor.RunAsync(_usageStop.Token);
+    }
+
+    private void StopUsagePolling()
+    {
+        _usage = null;
+        _usageStop?.Cancel();
+        _usageStop?.Dispose();
+        _usageStop = null;
+
+        _panel?.UsageStopped();
+        _overlay?.ClearUsage();
     }
 
     private void ShowPanel(PanelTab tab)

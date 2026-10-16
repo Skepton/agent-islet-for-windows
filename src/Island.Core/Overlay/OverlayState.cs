@@ -73,10 +73,11 @@ public sealed record OverlayOptions
 /// </summary>
 public static class IslandCollapse
 {
-    public static readonly TimeSpan After = TimeSpan.FromSeconds(5);
+    /// <summary>Long enough to read a command and decide: a card that shrinks mid-read looks like it vanished.</summary>
+    public static readonly TimeSpan After = TimeSpan.FromSeconds(20);
 
-    /// <summary>After the pointer leaves an expanded island, it collapses this much sooner than <see cref="After"/>.</summary>
-    public static readonly TimeSpan AfterHover = TimeSpan.FromSeconds(2);
+    /// <summary>After the pointer leaves an expanded island, it stays open this much longer before it collapses.</summary>
+    public static readonly TimeSpan LeaveGrace = TimeSpan.FromSeconds(8);
 
     public static bool IsWaiting(CardKind kind) => kind is CardKind.Permission or CardKind.NeedsInput or CardKind.ProjectApproval;
 

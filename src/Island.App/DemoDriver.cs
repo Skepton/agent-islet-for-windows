@@ -23,7 +23,7 @@ public sealed class DemoDriver
     public DemoDriver(OverlayController overlay)
     {
         _overlay = overlay;
-        _scenes = new Action[] { Permission, NeedsInput, Finished, NewProject, Milestone35, Milestone90, ThreeSessions };
+        _scenes = new Action[] { Permission, Quiet, UsageCreep, NeedsInput, Finished, NewProject, Milestone35, Milestone90, ThreeSessions };
         _timer = new DispatcherTimer { Interval = SceneLength };
         _timer.Tick += (_, _) => NextScene();
     }
@@ -40,7 +40,6 @@ public sealed class DemoDriver
     private void NextScene()
     {
         _overlay.Reset();
-        _overlay.SessionCountOverride = 1;
         _scenes[_next]();
         _next = (_next + 1) % _scenes.Length;
     }
@@ -65,13 +64,18 @@ public sealed class DemoDriver
         new ProjectApprovalRequested(new ProjectRef(OverlayController.DemoPrefix + "website", @"C:\Users\you\Projects\website", "website"), Agent),
     });
 
+    /// <summary>No card: only the thin usage bar shows. Rest the pointer on it to read the numbers.</summary>
+    private void Quiet() { }
+
+    /// <summary>A reading that moved one percent (no milestone): the numbers drop down for a few seconds, then the bar remains.</summary>
+    private void UsageCreep() => _overlay.OnUsage(UsageUpdateFor(fiveHour: 29, sevenDay: 55));
+
     private void Milestone35() => _overlay.OnUsage(UsageUpdateFor(fiveHour: 36, sevenDay: 55, new MilestoneEvent(UsageWindowId.FiveHour, 35, 36, Resets(3))));
 
     private void Milestone90() => _overlay.OnUsage(UsageUpdateFor(fiveHour: 92, sevenDay: 55, new MilestoneEvent(UsageWindowId.FiveHour, 90, 92, Resets(1))));
 
     private void ThreeSessions()
     {
-        _overlay.SessionCountOverride = 3;
         _overlay.OnEffects(new StoreEffect[]
         {
             PermissionEffect("demo-2", "s1", "my-project", "fix the failing tests"),
