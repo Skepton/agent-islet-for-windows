@@ -95,4 +95,4 @@ More detail: [PLAN.md](PLAN.md) (architecture and roadmap), [docs/findings.md](d
 
 ## Licence
 
-Not chosen yet. Until a licence is added, all rights are reserved.
+Licensed under the GNU General Public License v3.0 (see [LICENSE](LICENSE)), the same licence as Open Island, the macOS app whose look inspired this one. No code, design files or brand assets were copied from it.

@@ -42,8 +42,8 @@ A Windows overlay ("island") that drops down from the top of the screen when a c
 
 ## Open decisions (ask the user)
 - **Name** (see above).
-- **Licence.** Open Island is GPL v3. Reusing its code, design bundles or brand assets would force GPL-3.0 here, and the name/brand need the maintainers' say-so. Nothing has been copied. Still undecided.
-- **Smart App Control** is enforced on this machine; unsigned binaries are sometimes blocked. Options: trusted signing, or turn SAC off. Decide before packaging.
+- **Licence: decided (2026-10-16), GPL-3.0**, same as Open Island (verified on its repo page). `LICENSE` added. Nothing was copied from Open Island; its name/brand still need the maintainers' say-so, so do not use "Open Island" as our name.
+- **Signing: decided (2026-10-16), try SignPath Foundation.** Checklist and the rules we must meet are in `docs/distribution.md`. Next for the user: pick the name (blocks renaming the repo `Skepton/win-ai-squared` and the product-name metadata SignPath enforces).
 
 ## Decisions and preferences
 - Commit by feature, in small commits. Commit and push only when the user asks.
