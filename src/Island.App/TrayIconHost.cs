@@ -1,4 +1,5 @@
 using System.Drawing;
+using System.IO;
 using System.Windows.Forms;
 
 namespace Island.App;
@@ -27,7 +28,7 @@ internal sealed class TrayIconHost : IDisposable
 
         _icon = new NotifyIcon
         {
-            Icon = SystemIcons.Information, // placeholder until the app has its own icon
+            Icon = LoadIcon(),
             Text = "Claude Code Island",
             ContextMenuStrip = _menu,
             Visible = true,
@@ -43,6 +44,25 @@ internal sealed class TrayIconHost : IDisposable
         _icon.Visible = false;
         _icon.Dispose();
         _menu.Dispose();
+    }
+
+    /// <summary>The app icon at the size the notification area wants on this display (16 px at 100 %, 24 px at 150 %, ...).</summary>
+    private static Icon LoadIcon()
+    {
+        try
+        {
+            var resource = System.Windows.Application.GetResourceStream(new Uri("pack://application:,,,/Assets/island.ico"));
+            if (resource is not null)
+            {
+                using var stream = resource.Stream;
+                return new Icon(stream, SystemInformation.SmallIconSize);
+            }
+        }
+        catch (Exception ex) when (ex is IOException or ArgumentException or UriFormatException)
+        {
+            // Fall through to the stock icon: a missing icon must never stop the app from starting.
+        }
+        return SystemIcons.Application;
     }
 
     private static ToolStripMenuItem Item(string text, Action onClick, bool bold = false)

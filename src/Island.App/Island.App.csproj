@@ -9,6 +9,8 @@
     <RootNamespace>Island.App</RootNamespace>
     <AssemblyName>ClaudeCodeIsland</AssemblyName>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <!-- Drawn by scripts/make-icon.ps1. -->
+    <ApplicationIcon>Assets\island.ico</ApplicationIcon>
     <!-- WinForms' analyzer wants DPI set in code. This is a WPF app (WinForms is only the tray icon), and
          per-monitor DPI belongs in the manifest, so silence that one rule. -->
     <NoWarn>$(NoWarn);WFAC010</NoWarn>
@@ -18,6 +20,11 @@
     <!-- Keep WPF and WinForms type names from clashing (Application, MessageBox, ...). -->
     <Using Remove="System.Windows.Forms" />
     <Using Remove="System.Drawing" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Also compiled in, for the panel window and the tray icon. -->
+    <Resource Include="Assets\island.ico" />
   </ItemGroup>
 
   <ItemGroup>
