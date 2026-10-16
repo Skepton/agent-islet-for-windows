@@ -15,9 +15,50 @@ public static class IslandPaths
         {
             var overridden = Environment.GetEnvironmentVariable(DataDirEnvVar);
             return string.IsNullOrWhiteSpace(overridden)
-                ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ClaudeCodeIsland")
+                ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AgentIslet")
                 : overridden;
         }
+    }
+
+    /// <summary>The data folder from before the product was renamed (it was "Claude Code Island").</summary>
+    public static string LegacyDataDir =>
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ClaudeCodeIsland");
+
+    private static readonly string[] MigratedFiles = { "projects.json", "state.json", "config.json" };
+
+    /// <summary>
+    /// Copies the user's choices from the old data folder to the new one, once. A file that already exists in the new
+    /// folder is never overwritten and nothing is deleted from the old one (an older build may still be running from it).
+    /// Does nothing when <see cref="DataDirEnvVar"/> points somewhere else (tests, smoke scripts).
+    /// </summary>
+    public static int MigrateLegacyData()
+    {
+        if (!string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable(DataDirEnvVar))) return 0;
+        return MigrateData(LegacyDataDir, DataDir);
+    }
+
+    /// <returns>How many files were copied.</returns>
+    public static int MigrateData(string from, string to)
+    {
+        var copied = 0;
+        try
+        {
+            if (!Directory.Exists(from)) return 0;
+            Directory.CreateDirectory(to);
+            foreach (var name in MigratedFiles)
+            {
+                var source = Path.Combine(from, name);
+                var target = Path.Combine(to, name);
+                if (!File.Exists(source) || File.Exists(target)) continue;
+                File.Copy(source, target);
+                copied++;
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // Starting fresh is acceptable: the island asks about each project again.
+        }
+        return copied;
     }
 
     public static string StateFile => Path.Combine(DataDir, "state.json");

@@ -10,7 +10,7 @@ namespace Island.App;
 public partial class App : Application
 {
     /// <summary>Named event that asks the running island to quit (used when updating it).</summary>
-    public const string QuitSignalName = @"Local\ClaudeCodeIsland-Quit";
+    public const string QuitSignalName = @"Local\AgentIslet-Quit";
 
     private Mutex? _singleInstance;
     private EventWaitHandle? _quitSignal;
@@ -33,7 +33,7 @@ public partial class App : Application
     {
         base.OnStartup(e);
 
-        _singleInstance = new Mutex(initiallyOwned: true, @"Local\ClaudeCodeIsland", out var createdNew);
+        _singleInstance = new Mutex(initiallyOwned: true, @"Local\AgentIslet", out var createdNew);
         if (!createdNew)
         {
             // Another instance already owns the pipe; just leave.
@@ -42,6 +42,9 @@ public partial class App : Application
             Shutdown();
             return;
         }
+
+        // Carry the user's choices over from the folder the app used before it was renamed.
+        IslandPaths.MigrateLegacyData();
 
         // scripts/install-local.ps1 sets this event to ask a running island to quit cleanly before updating it.
         _quitSignal = new EventWaitHandle(false, EventResetMode.AutoReset, QuitSignalName);

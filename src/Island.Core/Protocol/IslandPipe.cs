@@ -13,7 +13,7 @@ public static class IslandPipe
     public static string ResolveName()
     {
         var overridden = Environment.GetEnvironmentVariable(OverrideEnvVar);
-        return string.IsNullOrWhiteSpace(overridden) ? $"claude-code-island-{CurrentUserSid()}" : overridden;
+        return string.IsNullOrWhiteSpace(overridden) ? $"agent-islet-{CurrentUserSid()}" : overridden;
     }
 
     public static string CurrentUserSid()

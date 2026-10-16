@@ -5,13 +5,13 @@ param([string]$Config = 'Debug')
 
 $ErrorActionPreference = 'Stop'
 $root = (Resolve-Path "$PSScriptRoot\..").Path
-$app = "$root\src\Island.App\bin\$Config\net8.0-windows\ClaudeCodeIsland.exe"
+$app = "$root\src\Island.App\bin\$Config\net8.0-windows\AgentIslet.exe"
 $hook = "$root\artifacts\hook\island-hook.exe"
 $fixtures = "$root\tests\fixtures\hooks"
 foreach ($f in $app, $hook) { if (-not (Test-Path $f)) { throw "missing $f (build / publish first)" } }
 
 $sid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
-$pipePath = "\\.\pipe\claude-code-island-$sid"
+$pipePath = "\\.\pipe\agent-islet-$sid"
 function Test-Pipe { [IO.Directory]::GetFiles('\\.\pipe\') -contains $pipePath }
 $failures = 0
 function Check($name, [bool]$ok, $detail = '') {

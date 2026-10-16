@@ -33,7 +33,7 @@ Early and in active development. The island, the hook forwarder, the installer a
 powershell -File scripts\install-local.ps1               # usage tracking is switched on in the panel's Usage tab
 ```
 
-This builds the island into `%LOCALAPPDATA%\ClaudeCodeIsland`, adds its hooks to Claude Code's user settings (`~/.claude/settings.json`, backed up first, nothing else touched) and starts it in the tray. Already-running Claude Code sessions pick it up on their next event.
+This builds the island into `%LOCALAPPDATA%\AgentIslet`, adds its hooks to Claude Code's user settings (`~/.claude/settings.json`, backed up first, nothing else touched) and starts it in the tray. Already-running Claude Code sessions pick it up on their next event.
 
 **You choose which projects show up.** The first time a session from a new folder reaches the island, it asks: *New project: my-app — Ignore / Show*. Until you answer, that project is left alone. Change your mind any time in the control panel's **Projects** tab (click the tray icon), where every project is listed with **Show**, **Ignore** and **Forget**.
 
@@ -46,8 +46,8 @@ You need Windows 10 or 11 and the [.NET 8 SDK](https://dotnet.microsoft.com/down
 ```powershell
 git clone git@github.com:Skepton/agent-islet-for-windows.git
 cd agent-islet-for-windows
-dotnet build ClaudeCodeIsland.sln
-dotnet test ClaudeCodeIsland.sln
+dotnet build AgentIslet.sln
+dotnet test AgentIslet.sln
 ```
 
 **See every card type** without Claude Code (cycles fake cards every few seconds):

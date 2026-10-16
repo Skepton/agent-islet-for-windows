@@ -6,7 +6,7 @@ namespace Island.ClaudeCode.Tests;
 /// <summary>The PLAN WP6 matrix, against temp files only. Never the real ~/.claude/settings.json.</summary>
 public sealed class InstallerTests : IDisposable
 {
-    private const string Exe = @"C:\Users\Some One\AppData\Local\ClaudeCodeIsland\bin\island-hook.exe";
+    private const string Exe = @"C:\Users\Some One\AppData\Local\AgentIslet\bin\island-hook.exe";
     private static readonly DateTimeOffset Now = new(2026, 10, 12, 9, 30, 0, TimeSpan.Zero);
 
     private const string OnlyModel = """
@@ -78,7 +78,7 @@ public sealed class InstallerTests : IDisposable
         {
             var entry = Assert.Single(Entries(installed, eventName));
             Assert.Equal("command", (string?)entry["type"]);
-            Assert.Equal("\"C:/Users/Some One/AppData/Local/ClaudeCodeIsland/bin/island-hook.exe\" hook", (string?)entry["command"]);
+            Assert.Equal("\"C:/Users/Some One/AppData/Local/AgentIslet/bin/island-hook.exe\" hook", (string?)entry["command"]);
             Assert.Equal(timeout, (int?)entry["timeout"]);
         }
         Assert.Equal("opus", (string?)JsonNode.Parse(installed)!["model"]);

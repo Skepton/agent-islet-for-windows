@@ -1,6 +1,6 @@
 # Agent Islet for Windows
 
-(Renamed from "Claude Code Island" on 2026-10-16. The internal identifiers still carry the old name for now: `ClaudeCodeIsland.sln`, `ClaudeCodeIsland.exe`, the `%LOCALAPPDATA%\ClaudeCodeIsland` data folder, the pipe and mutex names. Renaming those means reinstalling the hooks, so it is a separate step.)
+(Renamed from "Claude Code Island" on 2026-10-16: the exe is `AgentIslet.exe`, the solution `AgentIslet.sln`, the data folder `%LOCALAPPDATA%\AgentIslet`, the pipe `agent-islet-<SID>`. The old data folder is copied once on first start. The forwarder is still `island-hook.exe`, and our hook entries are recognised by that name.)
 
 Windows-only overlay ("island") that shows when Claude Code needs approval/input and when usage milestones are reached. Claude Code is the only agent today, but all agent-specific code lives in its own integration library so others can be added. C# / .NET 8 / WPF.
 
@@ -8,7 +8,7 @@ Windows-only overlay ("island") that shows when Claude Code needs approval/input
 
 ## Ground rules
 - **Fail open.** Nothing in this project may block, slow, or change Claude Code's behaviour unless the user explicitly chose so on a card. Default hook answer = print nothing, exit 0.
-- **Never modify `~/.claude/settings.json` in tests or during development** except through the installer code under test, pointed at a temp copy via `--settings <path>`. Back up before touching the real one. Do not leave hooks installed that you added. **Exception (user's choice, 2026-10-12):** the user runs the island day to day via `scripts/install-local.ps1`, which installed the island's hooks in their real `~/.claude/settings.json` pointing at `%LOCALAPPDATA%\ClaudeCodeIsland\bin\island-hook.exe`. Leave those in place; remove them only when the user asks (`install-local.ps1 -Uninstall`).
+- **Never modify `~/.claude/settings.json` in tests or during development** except through the installer code under test, pointed at a temp copy via `--settings <path>`. Back up before touching the real one. Do not leave hooks installed that you added. **Exception (user's choice, 2026-10-12):** the user runs the island day to day via `scripts/install-local.ps1`, which installed the island's hooks in their real `~/.claude/settings.json` pointing at `%LOCALAPPDATA%\AgentIslet\bin\island-hook.exe` (before the rename: `...\ClaudeCodeIsland\bin\...`; the next `install-local.ps1` run re-points them). Leave those in place; remove them only when the user asks (`install-local.ps1 -Uninstall`).
 - **Never read, print, log, or commit the contents of `~/.claude/.credentials.json`.** The usage client reads `accessToken` in memory only, never writes it anywhere (not logs, not state, not exceptions), and never refreshes it.
 - Never commit anything from `logs/` (contains prompts/commands from real sessions). Fixtures in `tests/fixtures` are sanitized; keep them that way (no real usernames, prompts, or tokens).
 - Don't log full `tool_input` / prompt text at default log level.

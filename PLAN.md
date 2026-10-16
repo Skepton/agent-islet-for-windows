@@ -1,6 +1,6 @@
 # Agent Islet — Implementation Plan (v2)
 
-> Product renamed from "Claude Code Island" to "Agent Islet" on 2026-10-16. Internal identifiers below (`ClaudeCodeIsland.sln`, `ClaudeCodeIsland.exe`, the pipe name, the data folder) still use the old name until the identifier rename.
+> Product renamed from "Claude Code Island" to "Agent Islet" on 2026-10-16, including the exe, solution, data folder, pipe and mutex names. The old data folder (`%LOCALAPPDATA%\ClaudeCodeIsland`) is copied once on first start; older entries in the status table below may still say the old names.
 
 A Windows-only, Claude Code-only take on [Open Island](https://github.com/Octane0411/open-vibe-island): a small "island" that drops down from the top-centre of the screen when Claude Code needs you (permission approval, waiting for input) and when usage milestones are reached (e.g. 25% of the 5-hour limit used).
 
@@ -105,7 +105,7 @@ Native Swift/AppKit; App (UI) + Core (models, Unix-socket bridge, persistence) +
 ## 4. Architecture
 
 ```
-Claude Code ──hook stdin──▶ island-hook.exe ──named pipe──▶ ClaudeCodeIsland.exe (WPF overlay + tray)
+Claude Code ──hook stdin──▶ island-hook.exe ──named pipe──▶ AgentIslet.exe (WPF overlay + tray)
                        ◀──stdout decision (PermissionRequest only)◀──┘
                                                          ▲
 IUsageSource: EndpointPoller (HTTPS poll) ───────────────┘ → MilestoneEngine → cards
@@ -115,13 +115,13 @@ IUsageSource: EndpointPoller (HTTPS poll) ────────────�
 
 ### 4.1 Layout
 ```
-ClaudeCodeIsland.sln
+AgentIslet.sln
 src/Island.Core        agent-neutral: IAgentIntegration, AgentEvent / PermissionVerdict, session state machine, hub,
                        IPC protocol + pipe transport, overlay card queue + presenter, IUsageSource + MilestoneEngine, paths
 src/Island.ClaudeCode  everything Claude Code: hook payload parsing, event mapping, PermissionRequest decision JSON,
                        permission_suggestions labels, tool summaries, forwarder side (CLAUDE_* env), OAuth usage source
 src/Island.Hook        exe "island-hook": `hook` (forwarder), `install`, `uninstall`, `simulate <fixture>`
-src/Island.App         exe "ClaudeCodeIsland": composes the integrations; pipe server, overlay, tray, settings UI
+src/Island.App         exe "AgentIslet": composes the integrations; pipe server, overlay, tray, settings UI
 tests/Island.Core.Tests        xUnit; drives Core with a made-up second agent (TestAgent), no Claude Code types
 tests/Island.ClaudeCode.Tests  xUnit against tests/fixtures
 tests/fixtures/{hooks,usage}   real, sanitized payloads (already present)
@@ -130,7 +130,7 @@ tests/fixtures/{hooks,usage}   real, sanitized payloads (already present)
 **Agent split.** Core never sees an agent's payload format or output format. An integration (`IAgentIntegration`) translates a hook payload into a neutral `AgentEvent` (`SessionStarted`, `PromptSubmitted`, `PermissionRequested`, `ToolProceeded`, `InputRequested`, `TurnFinished`, `SessionEnded`, `SessionActivity`) and encodes the user's `PermissionVerdict` (allow / deny / remember an offered `RememberOption`; null = no decision) into the exact text the hook prints. It also supplies every agent-specific display string on a card (headline, command prefix, button labels). Adding an agent = a new `Island.<Agent>` library implementing that, a forwarder subcommand for its hook, registration in `App.xaml.cs`, and its own installer.
 
 ### 4.2 IPC
-- Named pipe `\\.\pipe\claude-code-island-<current user SID>`, `PipeOptions.CurrentUserOnly` on **both** ends (the pipe can approve tool calls → security boundary).
+- Named pipe `\\.\pipe\agent-islet-<current user SID>`, `PipeOptions.CurrentUserOnly` on **both** ends (the pipe can approve tool calls → security boundary).
 - One connection per hook call, UTF-8 newline-delimited JSON. Protocol **v2** (v1 had no `agent` and returned a decision object; nothing with v1 was ever installed).
   - C→S: `{"v":2,"id":"<guid>","kind":"hook","agent":"claude-code","receivedAt":<unix ms>,"clientPid":<n>,"wait":<bool>,"clientApp":"VS Code"?,"payload":<raw stdin JSON>}`
   - S→C (only when `wait`): `{"v":2,"id":"<same>","output":"<text>"|null}`. The forwarder prints `output` verbatim (for Claude Code: the §2.3 hookSpecificOutput JSON); `null` = print nothing = no decision.
@@ -161,7 +161,7 @@ States and transitions:
 Sessions with no event for 12 h are pruned. All state in memory; **persist nothing from payloads** (no prompts, commands, file contents) to disk.
 
 ### 4.5 `Island.App` (WPF)
-- Single instance (`Local\ClaudeCodeIsland` mutex). Async pipe server, many concurrent connections (a permission request holds one open for minutes). Tray menu: Sessions, Pause notifications, Settings, Install/Repair hooks, Uninstall hooks, Start with Windows, Quit.
+- Single instance (`Local\AgentIslet` mutex). Async pipe server, many concurrent connections (a permission request holds one open for minutes). Tray menu: Sessions, Pause notifications, Settings, Install/Repair hooks, Uninstall hooks, Start with Windows, Quit.
 - **Overlay window:** `WindowStyle=None`, `AllowsTransparency`, transparent bg, `Topmost`, `ShowInTaskbar=False`, `ShowActivated=False`; `WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW`; toggle `WS_EX_TRANSPARENT` (click-through) when nothing is shown. **[?]** buttons stay clickable under `NOACTIVATE`, and the terminal/VS Code keeps keyboard focus when the card appears (this is the core UX risk — prototype it first, WP4).
 - Per-monitor DPI v2 manifest; top-centre of the monitor of the foreground window (fallback primary), inside the work area; re-position on display changes. Drop-down animation ~200 ms ease-out. Suppress non-critical cards (finished, milestones) when `SHQueryUserNotificationState` says fullscreen/presentation; queue them. Permission cards still show (setting).
 - One card at a time; priority NeedsPermission > NeedsInput > milestone > Finished; "1 of N" with next/prev.
@@ -177,11 +177,11 @@ Sessions with no event for 12 h are pruned. All state in memory; **persist nothi
 - Window key = `(Id, ResetsAt rounded to the nearest minute)` — the endpoint reports fractional seconds (`16:10:00.076`) and the status line reports epoch seconds; rounding makes both sources agree.
 - On each reading: highest threshold `t ≤ percent` not yet notified for this key → notify **only that one** (no burst of five), record all lower ones as notified. New key (window rolled over) ⇒ nothing notified. Reading lower than last seen for the same key ⇒ ignore (out-of-order). `null`/missing window ⇒ ignore.
 - First reading after install: show only the highest already-crossed threshold, once.
-- Persist `{key → highest notified threshold}` + last reading to `%LOCALAPPDATA%\ClaudeCodeIsland\state.json` (atomic temp+replace); prune keys whose reset is in the past.
+- Persist `{key → highest notified threshold}` + last reading to `%LOCALAPPDATA%\AgentIslet\state.json` (atomic temp+replace); prune keys whose reset is in the past.
 - Thresholds/enabled windows configurable; `spend_limit`/extra usage out of scope for v1.
 
 ### 4.7 Install / uninstall (`island-hook install|uninstall [--settings <path>] [--dry-run]`)
-- Copy `island-hook.exe` (+ app) to `%LOCALAPPDATA%\ClaudeCodeIsland\bin\` so hooks survive rebuilds/moves.
+- Copy `island-hook.exe` (+ app) to `%LOCALAPPDATA%\AgentIslet\bin\` so hooks survive rebuilds/moves.
 - Edit `~/.claude/settings.json` (or `--settings`): back up to `settings.json.island-backup-<ts>`; parse with `JsonNode`, preserve all unknown keys/ordering as far as possible; invalid JSON → abort, change nothing; show diff in `--dry-run`/UI; write atomically **without BOM**.
 - Register one matcher group per event: `SessionStart`, `UserPromptSubmit`, `PermissionRequest` (timeout 600), `PostToolUse`, `Notification`, `Stop`, `SessionEnd` (timeout 2). Command: `"C:/…/island-hook.exe" hook`. **Not** `PreToolUse`. Our entries are identified by the exe path/name; install is idempotent; other users' hooks are never touched; uninstall removes only ours and leaves the file otherwise byte-equivalent in content.
 - **No status line is installed in v1.** (Optional later: `install --statusline` wrapping any existing command, never overwriting silently.)
@@ -190,7 +190,7 @@ Sessions with no event for 12 h are pruned. All state in memory; **persist nothi
 - Compatibility: only `command` hooks, tolerant parsers, versioned IPC, self-contained publish (Windows 10 1607+/11, x64; arm64 optional).
 
 ### 4.8 Config & logs
-`%LOCALAPPDATA%\ClaudeCodeIsland\config.json` (thresholds, card toggles, durations, poll intervals, usage-polling consent, permission deadline, fullscreen behaviour, sound), `state.json` (milestones), `logs\` (rolling, ~5 MB cap, no payload contents / no tokens at default level).
+`%LOCALAPPDATA%\AgentIslet\config.json` (thresholds, card toggles, durations, poll intervals, usage-polling consent, permission deadline, fullscreen behaviour, sound), `state.json` (milestones), `logs\` (rolling, ~5 MB cap, no payload contents / no tokens at default level).
 
 ---
 
@@ -201,7 +201,7 @@ Sessions with no event for 12 h are pruned. All state in memory; **persist nothi
 4. `async: true` semantics; forwarder latency vs the 80 ms target; `CLAUDE_CONFIG_DIR` handling.
 5. Overlay focus behaviour (`NOACTIVATE`, clickable buttons, no focus steal).
 6. Does `PermissionDenied` fire for a user deny in the UI?
-7. **Smart App Control is enforced on the dev machine** (`VerifiedAndReputablePolicyState = 1`). All our binaries are unsigned, so they can be blocked, including `island-hook.exe` (which every hook call runs) and the app. Observed enforced blocks (Event 3077/3118 in `Microsoft-Windows-CodeIntegrity/Operational`): `Island.Core.Tests.dll` loaded by `testhost.exe` (15:28, later runs loaded fine) and `ClaudeCodeIsland.exe` (Debug build, 15:40, when launched with `dotnet run`). Unsigned `island-hook.exe` was run 40+ times without a block, but that is cloud-reputation luck, not something to rely on. SAC checks every loaded binary, including managed DLLs, and Microsoft documents no per-app exemption. **Decide before WP6 installs hooks:** (a) sign shipped binaries with a publicly trusted certificate (self-signed does not satisfy SAC; Microsoft's Artifact Signing, formerly Trusted Signing, is one route, eligibility and price unverified), or (b) turn SAC off in Windows Security (Microsoft says recent Windows updates allow turning it back on without a reinstall; verify on this build). For release builds publish single-file so there is one exe per program to sign. Do not add workarounds that bypass SAC. Diagnose blocks with the CodeIntegrity log, events 3076/3077.
+7. **Smart App Control is enforced on the dev machine** (`VerifiedAndReputablePolicyState = 1`). All our binaries are unsigned, so they can be blocked, including `island-hook.exe` (which every hook call runs) and the app. Observed enforced blocks (Event 3077/3118 in `Microsoft-Windows-CodeIntegrity/Operational`): `Island.Core.Tests.dll` loaded by `testhost.exe` (15:28, later runs loaded fine) and `AgentIslet.exe` (Debug build, 15:40, when launched with `dotnet run`). Unsigned `island-hook.exe` was run 40+ times without a block, but that is cloud-reputation luck, not something to rely on. SAC checks every loaded binary, including managed DLLs, and Microsoft documents no per-app exemption. **Decide before WP6 installs hooks:** (a) sign shipped binaries with a publicly trusted certificate (self-signed does not satisfy SAC; Microsoft's Artifact Signing, formerly Trusted Signing, is one route, eligibility and price unverified), or (b) turn SAC off in Windows Security (Microsoft says recent Windows updates allow turning it back on without a reinstall; verify on this build). For release builds publish single-file so there is one exe per program to sign. Do not add workarounds that bypass SAC. Diagnose blocks with the CodeIntegrity log, events 3076/3077.
 
 ---
 
@@ -250,7 +250,7 @@ Focus the originating window (parent-process walk from forwarder → window hand
 
 | WP | Status | Notes |
 |---|---|---|
-| WP0 Scaffold | done | `ClaudeCodeIsland.sln`, Core / Hook / App / tests, `Directory.Build.props` (warnings as errors). Builds with 0 warnings. |
+| WP0 Scaffold | done | `AgentIslet.sln`, Core / Hook / App / tests, `Directory.Build.props` (warnings as errors). Builds with 0 warnings. |
 | WP1 Core contracts | done | Tolerant payload parsing, frames, decisions, suggestion labels, tool summaries, session state machine. Tests parse every captured fixture. |
 | WP2 Hook forwarder | done | `island-hook hook` and `simulate <file> [secs]`. Fail-open verified. Latency 45 ms median with the app absent (target < 80 ms). Pipe-exists check avoids a 200 ms connect stall. |
 | WP3 App shell + pipe server + tray | done (one manual check left) | App hosts `IslandServer`/`IslandHub`, single-instance mutex, tray icon (Show / Quit), debug window (pending permission cards with Allow / remember / Deny / Answer in terminal buttons, sessions, event log), `--tray` starts hidden, 10-minute prune. `scripts/smoke-app.ps1` (10 checks) and `scripts/smoke-app-ui.ps1` (clicks the real buttons via UI Automation) pass. Latency with the app running: 50 ms median. **Left:** a real Claude Code session driving it (needs WP6's installer), and eyeballing the tray icon. |

@@ -7,11 +7,11 @@ param([string]$Config = 'Debug')
 
 $ErrorActionPreference = 'Stop'
 $root = (Resolve-Path "$PSScriptRoot\..").Path
-$app = "$root\src\Island.App\bin\$Config\net8.0-windows\ClaudeCodeIsland.exe"
+$app = "$root\src\Island.App\bin\$Config\net8.0-windows\AgentIslet.exe"
 if (-not (Test-Path $app)) { throw "build the app first" }
 
 $sid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
-if ([IO.Directory]::GetFiles('\\.\pipe\') -contains "\\.\pipe\claude-code-island-$sid") { throw "an island instance is already running; quit it from the tray first" }
+if ([IO.Directory]::GetFiles('\\.\pipe\') -contains "\\.\pipe\agent-islet-$sid") { throw "an island instance is already running; quit it from the tray first" }
 
 $failures = 0
 function Check($name, [bool]$ok, $detail = '') {

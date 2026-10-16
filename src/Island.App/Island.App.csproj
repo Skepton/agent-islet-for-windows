@@ -7,7 +7,7 @@
     <!-- WinForms is only used for the tray icon (NotifyIcon). -->
     <UseWindowsForms>true</UseWindowsForms>
     <RootNamespace>Island.App</RootNamespace>
-    <AssemblyName>ClaudeCodeIsland</AssemblyName>
+    <AssemblyName>AgentIslet</AssemblyName>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <!-- Drawn by scripts/make-icon.ps1. -->
     <ApplicationIcon>Assets\island.ico</ApplicationIcon>
