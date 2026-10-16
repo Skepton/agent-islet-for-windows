@@ -200,8 +200,9 @@
         </StackPanel>
     </Border>
 
-    <!-- Usage, hidden: a thin bar with one slim gauge per limit. Hover it (or wait for the numbers to change) to read them. -->
-    <Border x:Name="Hairline" Background="{StaticResource IslandBlackBrush}" CornerRadius="0,0,4,4" Padding="8,0,8,3"
+    <!-- Usage, hidden: a slim banner, one gauge per limit with its label and percentage. Rest the pointer on it
+         (or wait for the numbers to change) to open the full strip. -->
+    <Border x:Name="Hairline" Background="{StaticResource IslandBlackBrush}" CornerRadius="0,0,9,9" Padding="12,1,12,5"
             HorizontalAlignment="Center" VerticalAlignment="Top"
             Visibility="{Binding IsHairline, Converter={StaticResource BoolToVisibility}}">
         <ItemsControl ItemsSource="{Binding Strip}" Focusable="False" IsHitTestVisible="False">
@@ -210,8 +211,12 @@
             </ItemsControl.ItemsPanel>
             <ItemsControl.ItemTemplate>
                 <DataTemplate>
-                    <ProgressBar Value="{Binding Percent, Mode=OneWay}" Style="{StaticResource LevelBar}"
-                                 Width="64" Height="3" Margin="3,0" />
+                    <StackPanel Orientation="Horizontal" Margin="7,0">
+                        <TextBlock Text="{Binding Label}" Style="{StaticResource SecondaryText}" FontSize="10" VerticalAlignment="Center" Margin="0,0,6,0" />
+                        <ProgressBar Value="{Binding Percent, Mode=OneWay}" Style="{StaticResource LevelBar}"
+                                     Width="64" Height="5" VerticalAlignment="Center" />
+                        <TextBlock Text="{Binding PercentText}" Style="{StaticResource LevelText}" FontSize="10" VerticalAlignment="Center" Margin="6,0,0,0" />
+                    </StackPanel>
                 </DataTemplate>
             </ItemsControl.ItemTemplate>
         </ItemsControl>
