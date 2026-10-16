@@ -170,7 +170,7 @@ public sealed class SessionStore
         return session with
         {
             Cwd = cwd,
-            DisplayName = DisplayNameFor(cwd, evt.SessionTitle, sid),
+            DisplayName = DisplayNameFor(cwd, evt.SessionTitle, sid, evt.ProjectName),
             LastSeen = now,
             ClientApp = evt.ClientApp ?? session.ClientApp,
             Agent = evt.Agent ?? session.Agent,
@@ -208,8 +208,10 @@ public sealed class SessionStore
     private bool RecentlyResolved(SessionInfo s, DateTimeOffset now) =>
         s.LastPermissionResolvedAt is { } resolved && now - resolved <= _dedupeWindow;
 
-    internal static string DisplayNameFor(string? cwd, string? title, string sid)
+    /// <summary>The project folder wins over the working folder: a subagent's cwd is its worktree ("agent-…").</summary>
+    internal static string DisplayNameFor(string? cwd, string? title, string sid, string? projectName = null)
     {
+        if (!string.IsNullOrWhiteSpace(projectName)) return projectName;
         var folder = FolderName(cwd);
         if (!string.IsNullOrEmpty(folder)) return folder;
         if (!string.IsNullOrWhiteSpace(title)) return TextUtil.Truncate(title, 40);

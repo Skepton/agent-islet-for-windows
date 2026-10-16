@@ -123,6 +123,18 @@ public sealed class ProjectPolicyTests : IDisposable
     }
 
     [Fact]
+    public async Task A_session_is_named_after_its_project_folder()
+    {
+        var policy = new ProjectPolicy();
+        policy.Set(ProjectRef.From(@"C:\work\my-app")!, ProjectDecision.Allowed, T0);
+        var (hub, _, store) = Hub(policy);
+
+        await hub.HandleAsync(Frame("finished"), CancellationToken.None);
+
+        Assert.Equal("my-app", store.Snapshot().Single().DisplayName);
+    }
+
+    [Fact]
     public async Task Ignoring_a_shown_project_drops_its_sessions_and_releases_its_request()
     {
         var policy = new ProjectPolicy();

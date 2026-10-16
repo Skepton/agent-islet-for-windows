@@ -53,7 +53,7 @@ public sealed class IslandHub
             return null;
         }
 
-        evt = evt with { ClientApp = frame.ClientApp ?? evt.ClientApp, Agent = agent.DisplayName, Project = project?.Key };
+        evt = evt with { ClientApp = frame.ClientApp ?? evt.ClientApp, Agent = agent.DisplayName, Project = project?.Key, ProjectName = project?.Name };
         var holdForDecision = frame.Wait && evt is PermissionRequested;
 
         // Register the waiter before anything is presented, so an answer given instantly cannot be lost.

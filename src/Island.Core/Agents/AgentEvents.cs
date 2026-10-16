@@ -21,6 +21,9 @@ public abstract record AgentEvent
     /// <summary><see cref="ProjectRef.Key"/> of the session's project folder; filled in by the hub.</summary>
     public string? Project { get; init; }
 
+    /// <summary>Folder name of the session's project (<see cref="ProjectRef.Name"/>); filled in by the hub. Names the card.</summary>
+    public string? ProjectName { get; init; }
+
     /// <summary>The agent's own name for what happened ("Notification(idle_prompt)"), for the debug log. Never payload content.</summary>
     public string? Source { get; init; }
 }
