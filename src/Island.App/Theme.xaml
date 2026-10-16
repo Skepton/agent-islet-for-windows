@@ -76,6 +76,9 @@
                         <Trigger Property="IsPressed" Value="True">
                             <Setter TargetName="Surface" Property="Opacity" Value="0.68" />
                         </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="Surface" Property="Opacity" Value="0.35" />
+                        </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
             </Setter.Value>

@@ -94,7 +94,12 @@ public partial class App : Application
             hub,
             new ProjectsViewModel(hub, askAboutProjects),
             new UsageSettingsViewModel(_config, ApplyConfig),
-            HookStatus,
+            new SetupViewModel(
+                new ClaudeCodeSetup(
+                    ClaudePaths.UserSettings(),
+                    Path.Combine(AppContext.BaseDirectory, HookSettings.ExeName),
+                    Path.Combine(IslandPaths.DataDir, "bin", HookSettings.ExeName)),
+                Confirm),
             "Version " + (typeof(App).Assembly.GetName().Version?.ToString(3) ?? "?"),
             OpenDataFolder);
         _panelWindow = new PanelWindow(_panel);
@@ -130,7 +135,8 @@ public partial class App : Application
             _demo.Start();
         }
 
-        if (!e.Args.Contains("--tray")) ShowPanel(PanelTab.Sessions);
+        // First thing a new user needs is the connection to Claude Code, so open the panel there until it is made.
+        if (!e.Args.Contains("--tray")) ShowPanel(_panel.Setup.NeedsSetup ? PanelTab.Setup : PanelTab.Sessions);
     }
 
     protected override void OnSessionEnding(SessionEndingCancelEventArgs e)
@@ -215,22 +221,9 @@ public partial class App : Application
         _panelWindow.Activate();
     }
 
-    /// <summary>One line for the panel: are the Claude Code hooks installed, and which exe do they run? Reads settings, never writes.</summary>
-    private static string HookStatus()
-    {
-        var path = ClaudePaths.UserSettings();
-        try
-        {
-            var count = HookSettings.CountOurs(SettingsFile.Read(path));
-            return count == 0
-                ? "Claude Code hooks: not installed (run scripts\\install-local.ps1)"
-                : $"Claude Code hooks: {count} installed in {path}";
-        }
-        catch (Exception ex) when (ex is FormatException or IOException or UnauthorizedAccessException)
-        {
-            return $"Claude Code hooks: could not read {path}";
-        }
-    }
+    /// <summary>Asks the user before the app edits Claude Code's settings (or undoes that).</summary>
+    private bool Confirm(string text) =>
+        MessageBox.Show(_panelWindow, text, "Agent Islet", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes;
 
     private static void OpenDataFolder()
     {

@@ -4,7 +4,7 @@ using Island.Core;
 
 namespace Island.App;
 
-public enum PanelTab { Sessions, Projects, Usage, Debug }
+public enum PanelTab { Sessions, Projects, Usage, Setup, Debug }
 
 /// <summary>Colour of a session's status dot.</summary>
 public enum StatusKind { Idle, Working, Attention, Done }
@@ -41,26 +41,25 @@ public sealed class PanelViewModel : ObservableObject
     private const int MaxEvents = 200;
 
     private readonly IslandHub _hub;
-    private readonly Func<string> _hookStatus;
     private PanelTab _tab = PanelTab.Sessions;
     private const string UsageOffText = "Usage tracking is off. Turn it on in the Usage tab.";
 
     private string _usageText = UsageOffText;
     private string _hooksText = "";
 
-    /// <param name="hookStatus">Describes whether the agent hooks are installed; re-read whenever the panel refreshes.</param>
     public PanelViewModel(
-        IslandHub hub, ProjectsViewModel projects, UsageSettingsViewModel usage, Func<string> hookStatus, string version, Action openDataFolder)
+        IslandHub hub, ProjectsViewModel projects, UsageSettingsViewModel usage, SetupViewModel setup, string version, Action openDataFolder)
     {
         _hub = hub;
-        _hookStatus = hookStatus;
         Projects = projects;
         Usage = usage;
+        Setup = setup;
         usage.Status = _usageText;
         Version = version;
         ShowSessions = new RelayCommand(() => Tab = PanelTab.Sessions);
         ShowProjects = new RelayCommand(() => Tab = PanelTab.Projects);
         ShowUsage = new RelayCommand(() => Tab = PanelTab.Usage);
+        ShowSetup = new RelayCommand(() => Tab = PanelTab.Setup);
         ShowDebug = new RelayCommand(() => Tab = PanelTab.Debug);
         OpenDataFolder = new RelayCommand(openDataFolder);
         CopyLog = new RelayCommand(() => System.Windows.Clipboard.SetText(string.Join(Environment.NewLine, Events.Reverse())));
@@ -69,11 +68,13 @@ public sealed class PanelViewModel : ObservableObject
 
     public ProjectsViewModel Projects { get; }
     public UsageSettingsViewModel Usage { get; }
+    public SetupViewModel Setup { get; }
     public string Version { get; }
 
     public ICommand ShowSessions { get; }
     public ICommand ShowProjects { get; }
     public ICommand ShowUsage { get; }
+    public ICommand ShowSetup { get; }
     public ICommand ShowDebug { get; }
     public ICommand OpenDataFolder { get; }
     public ICommand CopyLog { get; }
@@ -88,6 +89,7 @@ public sealed class PanelViewModel : ObservableObject
             Raise(nameof(IsSessions));
             Raise(nameof(IsProjects));
             Raise(nameof(IsUsage));
+            Raise(nameof(IsSetup));
             Raise(nameof(IsDebug));
             Raise(nameof(PageTitle));
             if (value == PanelTab.Projects) Projects.Refresh();
@@ -112,6 +114,12 @@ public sealed class PanelViewModel : ObservableObject
         set { if (value) Tab = PanelTab.Usage; }
     }
 
+    public bool IsSetup
+    {
+        get => Tab == PanelTab.Setup;
+        set { if (value) Tab = PanelTab.Setup; }
+    }
+
     public bool IsDebug
     {
         get => Tab == PanelTab.Debug;
@@ -122,6 +130,7 @@ public sealed class PanelViewModel : ObservableObject
     {
         PanelTab.Projects => "Projects",
         PanelTab.Usage => "Usage",
+        PanelTab.Setup => "Claude Code",
         PanelTab.Debug => "Debug",
         _ => "Sessions",
     };
@@ -179,7 +188,8 @@ public sealed class PanelViewModel : ObservableObject
         Raise(nameof(HasNoSessions));
         Raise(nameof(HasSessions));
         Raise(nameof(SessionCount));
-        HooksText = _hookStatus();
+        Setup.Refresh();
+        HooksText = Setup.StatusText;
     }
 
     public void LogLine(string text)

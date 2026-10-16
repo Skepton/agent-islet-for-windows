@@ -167,6 +167,7 @@
                 </RadioButton>
                 <RadioButton Style="{StaticResource NavButton}" IsChecked="{Binding IsProjects}" Content="Projects" />
                 <RadioButton Style="{StaticResource NavButton}" IsChecked="{Binding IsUsage}" Content="Usage" />
+                <RadioButton Style="{StaticResource NavButton}" IsChecked="{Binding IsSetup}" Content="Claude Code" />
                 <RadioButton Style="{StaticResource NavButton}" IsChecked="{Binding IsDebug}" Content="Debug" />
             </StackPanel>
         </DockPanel>
@@ -243,6 +244,33 @@
                                                Style="{StaticResource SecondaryText}" TextWrapping="Wrap" TextTrimming="None" Margin="0,2,0,0" />
                                 </StackPanel>
                             </RadioButton>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </ScrollViewer>
+
+            <!-- Claude Code connection -->
+            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="24,14,18,14" DataContext="{Binding Setup}"
+                          Visibility="{Binding DataContext.IsSetup, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVisibility}}">
+                <StackPanel>
+                    <TextBlock Style="{StaticResource SecondaryText}" TextWrapping="Wrap" TextTrimming="None" Margin="0,0,0,14"
+                               Text="Agent Islet hears about Claude Code through small hooks that live in Claude Code's own settings file. Connecting adds them, disconnecting removes them. Your settings file is backed up first, and only the island's own entries are ever touched." />
+
+                    <Border Style="{StaticResource PanelCard}">
+                        <StackPanel>
+                            <TextBlock Text="{Binding StatusText}" Style="{StaticResource TitleText}" TextWrapping="Wrap" TextTrimming="None" />
+                            <StackPanel Orientation="Horizontal" Margin="0,14,0,0">
+                                <Button Content="{Binding ConnectLabel}" Command="{Binding Connect}" Height="30" Padding="14,0" Margin="0,0,8,0">
+                                    <Button.Style>
+                                        <Style TargetType="Button" BasedOn="{StaticResource IslandButton}">
+                                            <Setter Property="Background" Value="{StaticResource AccentBrush}" />
+                                        </Style>
+                                    </Button.Style>
+                                </Button>
+                                <Button Content="Disconnect" Command="{Binding Disconnect}" Style="{StaticResource IslandButton}" Height="30"
+                                        Padding="14,0" IsEnabled="{Binding IsConnected}" />
+                            </StackPanel>
+                            <TextBlock Text="{Binding ResultText}" Style="{StaticResource SecondaryText}" TextWrapping="Wrap" TextTrimming="None" Margin="0,12,0,0" />
                         </StackPanel>
                     </Border>
                 </StackPanel>
