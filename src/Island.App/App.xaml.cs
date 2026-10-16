@@ -55,7 +55,7 @@ public partial class App : Application
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"Could not determine the pipe name:\n{ex.Message}", "Claude Code Island", MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show($"Could not determine the pipe name:\n{ex.Message}", "Agent Islet", MessageBoxButton.OK, MessageBoxImage.Error);
             Quit();
             return;
         }
@@ -246,7 +246,7 @@ public partial class App : Application
     {
         MessageBox.Show(
             $"The island could not listen for Claude Code events:\n{error?.Message}",
-            "Claude Code Island", MessageBoxButton.OK, MessageBoxImage.Error);
+            "Agent Islet", MessageBoxButton.OK, MessageBoxImage.Error);
         Quit();
     }
 

@@ -1,4 +1,6 @@
-# Claude Code Island
+# Agent Islet for Windows
+
+(Renamed from "Claude Code Island" on 2026-10-16. The internal identifiers still carry the old name for now: `ClaudeCodeIsland.sln`, `ClaudeCodeIsland.exe`, the `%LOCALAPPDATA%\ClaudeCodeIsland` data folder, the pipe and mutex names. Renaming those means reinstalling the hooks, so it is a separate step.)
 
 Windows-only overlay ("island") that shows when Claude Code needs approval/input and when usage milestones are reached. Claude Code is the only agent today, but all agent-specific code lives in its own integration library so others can be added. C# / .NET 8 / WPF.
 

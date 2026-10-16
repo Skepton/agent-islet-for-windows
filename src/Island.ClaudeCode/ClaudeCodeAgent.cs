@@ -14,7 +14,7 @@ public sealed class ClaudeCodeAgent : IAgentIntegration
     public const string AgentId = "claude-code";
 
     /// <summary>What Claude is told when the user clicks No on the island.</summary>
-    public const string DefaultDenyMessage = "Denied from Claude Code Island";
+    public const string DefaultDenyMessage = "Denied from Agent Islet";
 
     // Notification types that mean "Claude is waiting for a human".
     private static readonly string[] NeedsYouTypes =

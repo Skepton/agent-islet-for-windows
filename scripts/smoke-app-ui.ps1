@@ -65,7 +65,7 @@ try {
         $window = [Windows.Automation.AutomationElement]::RootElement.FindFirst([Windows.Automation.TreeScope]::Children,
             (New-Object Windows.Automation.AndCondition(
                 (New-Object Windows.Automation.PropertyCondition([Windows.Automation.AutomationElement]::ProcessIdProperty, $proc.Id)),
-                (New-Object Windows.Automation.PropertyCondition([Windows.Automation.AutomationElement]::NameProperty, 'Claude Code Island - panel')))))
+                (New-Object Windows.Automation.PropertyCondition([Windows.Automation.AutomationElement]::NameProperty, 'Agent Islet - panel')))))
         if (-not $window) { Start-Sleep -Milliseconds 150 }
     }
     Check 'control panel is shown' ($null -ne $window)

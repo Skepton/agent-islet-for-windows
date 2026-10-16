@@ -1,10 +1,15 @@
-# win-ai-squared
+# Agent Islet for Windows
 
-**Claude Code Island for Windows**: a small black "island" that drops down from the top of your screen when your AI coding agent needs you, and gets out of the way when it doesn't.
+<img src="docs/images/icon.png" alt="Agent Islet icon" width="96" align="right">
+
+
+**Agent Islet**: a small black "island" that drops down from the top of your screen when your AI coding agent needs you, and gets out of the way when it doesn't. It works with Claude Code today.
 
 Running a couple of Claude Code sessions while you do something else? You no longer have to keep checking which one is stuck waiting for you. The island tells you, and you can answer most requests right from it.
 
 Inspired by [Open Island](https://github.com/Octane0411/open-vibe-island) for macOS. Built for Windows in C# / .NET 8 / WPF.
+
+> Agent Islet is an independent project. It is not affiliated with, endorsed by or sponsored by Anthropic or by the Open Island project. "Claude" and "Claude Code" are trademarks of Anthropic, PBC, used here only to say what the app works with.
 
 ## What it shows
 
@@ -39,8 +44,8 @@ To remove the hooks again: `powershell -File scripts\install-local.ps1 -Uninstal
 You need Windows 10 or 11 and the [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0).
 
 ```powershell
-git clone git@github.com:Skepton/win-ai-squared.git
-cd win-ai-squared
+git clone git@github.com:Skepton/agent-islet-for-windows.git
+cd agent-islet-for-windows
 dotnet build ClaudeCodeIsland.sln
 dotnet test ClaudeCodeIsland.sln
 ```

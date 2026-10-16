@@ -52,7 +52,7 @@ public sealed class OAuthUsageSource : IUsageSource
         using var request = new HttpRequestMessage(HttpMethod.Get, Endpoint);
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", credentials.Token!.Reveal());
         request.Headers.TryAddWithoutValidation("anthropic-beta", "oauth-2025-04-20");
-        request.Headers.UserAgent.ParseAdd("claude-code-island/0.1");
+        request.Headers.UserAgent.ParseAdd("agent-islet/0.1");
 
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(ct);
         deadline.CancelAfter(_timeout);

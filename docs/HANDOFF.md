@@ -1,21 +1,20 @@
-# Handoff (end of session 3, 2026-10-14)
+# Handoff (end of session 4, 2026-10-16)
 
 Read this, then `CLAUDE.md` (ground rules) and `PLAN.md` (architecture; status table in §8). Evidence for Claude Code behaviour is in `docs/findings.md`; the look reference is `docs/design.md`.
 
 ## What it is
 A Windows overlay ("island") that drops down from the top of the screen when a coding agent needs the user: permission requests (answer No / Yes / Always Allow from the island), questions, waiting-for-input, new-project approval, and usage milestones for the 5-hour and 7-day limits. Claude Code is the only agent so far; all agent-specific code lives in `src/Island.ClaudeCode`. C# / .NET 8 / WPF.
 
-**The name is undecided.** The repo and app are still called "Claude Code Island" (`ClaudeCodeIsland.sln`, `ClaudeCodeIsland.exe`). The user rejected "AI² / AI Squared" and suggested something like **"Agent Island for Windows"**. Ask before renaming anything.
+**Name: Agent Islet** (decided 2026-10-16; written "Agent Islet" in the UI and README, `agent-islet-for-windows` as the repo, "for Windows" in the tagline). It avoids "Claude" in the name (Anthropic's trademark guidelines bar implying affiliation) and "Agent Island" (an existing app, agent-island.dev). The README says it is not affiliated with Anthropic or Open Island. Tray, window titles, README, docs and exe product metadata (`Directory.Build.props`) use the new name.
+
+**Still on the old name (deliberately):** the identifiers `ClaudeCodeIsland.sln`, `ClaudeCodeIsland.exe` (`AssemblyName`), the `%LOCALAPPDATA%\ClaudeCodeIsland` data folder, the pipe name (`IslandPipe.cs`) and the mutex and quit-event names (`App.xaml.cs`). Changing them breaks the link between the installed hooks and the app until `install-local.ps1` is re-run, so do it as one step with the user's OK (see "Rename mechanics").
 
 ## Right now
-- Repo `main` at `8d9cade`, working tree clean. This session's commits: `5ed3497` (call matching, questions, remember labels, event trace), `e8a579a` (control panel, collapsed pill, dark tray menu, quit event), `8d9cade` (docs).
-- **Pushed status is unverified.** The local `origin/main` ref points at `8d9cade`, but no push of those three commits was run in this session. Run `git fetch` and `git status -sb` before saying what is on GitHub.
-- The AI² rename was **discarded** from the working tree (`git reset --hard`). It is saved as `ai-squared-rename.patch` in the session scratchpad (`C:\Users\xeino\AppData\Local\Temp\claude\c--Users-xeino-Documents-Projects-claude-code-island\884d5cde-47bc-445d-9d5a-26d67ee0a8b1\scratchpad\`). It is mostly obsolete for the new name, but see "Rename mechanics" below.
-- Tests at `8d9cade`: 309 pass (Core 155, Claude Code 154). `smoke-app` and `smoke-app-ui` pass. `smoke-overlay` (moves the mouse) and `smoke-usage` (one live API call) have not been run since the session-3 changes.
-- The user's installed island is the `8d9cade` build in `%LOCALAPPDATA%\ClaudeCodeIsland\app`, running, pipe listening. Its 8 hooks in `~/.claude/settings.json` point at `%LOCALAPPDATA%\ClaudeCodeIsland\bin\island-hook.exe`. Project choices are in `%LOCALAPPDATA%\ClaudeCodeIsland\projects.json`.
-- `%LOCALAPPDATA%\AISquared\projects.json` is a copy made by the rename test run (`File.Copy` keeps timestamps). Harmless; delete when convenient.
+- Repo: `Skepton/agent-islet-for-windows` (public; renamed from `win-ai-squared`, which still redirects). Check `git fetch` and `git status -sb` before saying what is on GitHub.
+- Tests: 337 pass (Core 183, Claude Code 154). `smoke-app` and `smoke-app-ui` were last run before session 4 (their window-title lookups now say "Agent Islet"); `smoke-overlay` (moves the mouse) and `smoke-usage` (one live API call) have not been run since the session-3 changes.
+- The user's island is the repo's Debug build run with `--tray`. The 8 hooks in `~/.claude/settings.json` still point at the older installed forwarder in `%LOCALAPPDATA%\ClaudeCodeIsland\bin\island-hook.exe` (protocol v2, still compatible). Project choices are in `%LOCALAPPDATA%\ClaudeCodeIsland\projects.json`.
 
-## Session 4 (2026-10-16), all uncommitted
+## Session 4 (2026-10-16)
 - **Usage setting + thin bar.** `config.json` (`ConfigStore`, `IslandConfig`: usage on/off, consent time, bar mode) and a panel **Usage** tab (switch with consent text, "thin bar" / "only when it changes"). `--poll-usage` now just writes consent to `config.json`. The idle island is an 8 px bar with one gauge per limit; `UsageReveal` (Core, tested) shows the numbers for 6 s when whole percentages change and while the pointer rests on the bar. The bar is click-through, so hover is found by polling the cursor (`OverlayController.OnHoverTick`). A card always replaces the strip. Checked live with `--demo` (new Quiet and UsageCreep scenes) and DPI-aware screenshots.
 - **Subagent cards** are named after the project folder (`AgentEvent.ProjectName`).
 - **Card "disappearing" report (user):** the island shrank to its pill after 5 s (2 s after the pointer left). Now 20 s / 8 s (`IslandCollapse.After`, `LeaveGrace`), and the debug log says "island shrank to the pill". Not confirmed as the user's cause: if it happens again, the Debug tab shows `permission closed (outcome)` for a real clear. Second suspect: `ToolProceeded` with a null call key releases every pending request and notice.
@@ -25,25 +24,23 @@ A Windows overlay ("island") that drops down from the top of the screen when a c
 - Distribution (asked by user): portable self-contained exe on GitHub Releases, in-app update check against the Releases API, first-run hook setup. Blocker: Smart App Control / SmartScreen with an unsigned exe. See the chat answer; nothing built yet.
 
 ## Next, in the user's order
-1. **Name, logo and banner for the README.** Requested; not started. Agree the product name with the user first (candidate: "Agent Island for Windows"). Then:
-   - **Logo:** a simple SVG of the island pill: black rounded shape, orange `#E58C36` accent (as in `Theme.xaml`). Original art only; do not copy Open Island's assets (licence question below).
-   - **Banner:** HTML/CSS rendered to PNG with headless Edge (`C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe`, `--headless --screenshot`). Save both under `docs/images/` and reference them from `README.md`.
+1. **Release and signing** (see `docs/distribution.md`): release workflow, first-run "Set up" button and "Remove hooks", embedded forwarder, update check, first unsigned release, then the user applies to SignPath. Also a README banner (HTML/CSS rendered to PNG with headless Edge, `--headless --screenshot`; original art only, nothing from Open Island). The icon is already in the README (`docs/images/icon.png`).
+   - Rename the internal identifiers first (see "Rename mechanics"), so the signed exe is `AgentIslet.exe`.
 2. **Panel Island and Usage tabs:** island position (top centre / left / right; follow the active monitor or always the primary), card timings, and a real usage on/off switch with consent text (replacing `--poll-usage` / `-PollUsage`). Needs `config.json` in the data folder (PLAN §4.8).
 3. **Click-to-focus:** clicking a card's body (not its buttons) brings the session's window forward. The forwarder already sends `CLAUDE_PID`; add `VSCODE_PID` to the env mapping. VS Code: pick the Code.exe window whose title contains the project folder name. Terminals: walk parent processes up to one with a window. Keep the window choice a pure, tested function in Core; the Win32 calls go in the App. Check that Windows lets a no-activate window bring another window forward.
 4. **Verify live:** approving a request in VS Code clears the island card (call-key matching, findings L6). Re-run `smoke-overlay` and `smoke-usage` (ask the user first: they move the mouse / call the API).
-5. ~~Subagent cards are named after their worktree folder~~ Done (uncommitted, session 4): the hub sets `AgentEvent.ProjectName` from `CLAUDE_PROJECT_DIR`; `SessionStore.DisplayNameFor` prefers it. Not yet checked live; the installed island is still the `8d9cade` build.
+5. ~~Subagent cards are named after their worktree folder~~ Done in session 4 (`AgentEvent.ProjectName`, from `CLAUDE_PROJECT_DIR`). Not yet checked live with a real subagent.
 6. Re-measure forwarder latency on a quiet machine (findings L8).
 
-## Rename mechanics (for whichever name is chosen)
-- Names live in `src/Island.Core/Product.cs` (`Name`, `Id`, `OldId`). Pipe name: `IslandPipe.cs`. Mutex and quit-event names: `App.xaml.cs`. Exe name: `AssemblyName` in `Island.App.csproj`. Window titles: `IslandWindow.xaml`, `PanelWindow.xaml`, `TrayIconHost.cs`.
-- The data folder changes too: `IslandPaths.MigrateFrom` copies `projects.json` and `state.json` once from the old folder (tested).
-- `scripts/install-local.ps1` must close the old-named island through its quit event and point the hooks at the new folder. The installer already handles a moved exe (tested).
-- Smoke scripts and UI Automation titles must match the new names. Write non-ASCII in `.ps1` as `[char]0xNN`.
+## Rename mechanics (the identifiers still on the old name)
+- Pipe name: `src/Island.Core/Protocol/IslandPipe.cs` (`claude-code-island-<SID>`). Mutex and quit-event names: `App.xaml.cs`. Exe name: `AssemblyName` in `Island.App.csproj`. Data folder: `IslandPaths.DataDir` (in `MilestoneStateStore.cs`). Solution file: `ClaudeCodeIsland.sln`.
+- Add a one-time migration that copies `projects.json`, `state.json` and `config.json` from the old data folder to the new one (write a test).
+- `scripts/install-local.ps1` must close the old-named island through its old quit event, publish to the new folder, and re-point the hooks (the installer already handles a moved exe, tested). Until it is re-run, hooks keep talking to the old pipe name, so rename the pipe and re-run it together.
+- The smoke scripts, `tests/.../InstallerTests.cs` and the docs mention the old pipe, exe and folder names. Write non-ASCII in `.ps1` as `[char]0xNN`.
 
-## Open decisions (ask the user)
-- **Name** (see above).
-- **Licence: decided (2026-10-16), GPL-3.0**, same as Open Island (verified on its repo page). `LICENSE` added. Nothing was copied from Open Island; its name/brand still need the maintainers' say-so, so do not use "Open Island" as our name.
-- **Signing: decided (2026-10-16), try SignPath Foundation.** Checklist and the rules we must meet are in `docs/distribution.md`. Next for the user: pick the name (blocks renaming the repo `Skepton/win-ai-squared` and the product-name metadata SignPath enforces).
+## Decisions
+- **Licence: GPL-3.0** (2026-10-16), same as Open Island (verified on its repo page). `LICENSE` added. Nothing was copied from Open Island; its name and brand are theirs, so we do not use "Open Island" as our name.
+- **Signing: try SignPath Foundation** (2026-10-16). Rules and checklist in `docs/distribution.md`. Applying is the user's step, once there is a public unsigned release.
 
 ## Decisions and preferences
 - Commit by feature, in small commits. Commit and push only when the user asks.
@@ -95,7 +92,7 @@ Run smoke scripts as `powershell -NoProfile -ExecutionPolicy Bypass -File ...` i
 - `git reset --hard` discards uncommitted work. Save a patch first (`git diff --cached --binary > file`).
 - `Remove-Item` on a path built from a variable was refused as protected in this environment; use fixed paths.
 - `install-local.ps1` refuses to run while a permission request waits on the installed forwarder (answer it in Claude Code first).
-- The app owns two top-level windows; UI Automation must select by title ("AI² - panel" style names after a rename; "Claude Code Island - panel" at this commit).
+- The app owns two top-level windows; UI Automation must select by title ("Agent Islet" for the island, "Agent Islet - panel" for the panel).
 - Benchmarks or `simulate` against the live pipe show up on the user's island (a payload without `cwd` is let through). Point them at a fake pipe with `ISLAND_PIPE_NAME`.
 - `NamedPipeClientStream.ConnectAsync(timeout)` waits the whole timeout when the pipe is missing; `IslandClient` checks `\\.\pipe\` first. Keep that.
 - WinForms analyzer WFAC010 rejects manifest DPI settings; the App csproj suppresses it.

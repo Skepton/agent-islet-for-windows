@@ -57,7 +57,7 @@ function Find-IslandWindow($pidToFind, [int]$seconds = 10) {
     $byPid = New-Object Windows.Automation.PropertyCondition([Windows.Automation.AutomationElement]::ProcessIdProperty, $pidToFind)
     while ((Get-Date) -lt $deadline) {
         foreach ($w in [Windows.Automation.AutomationElement]::RootElement.FindAll([Windows.Automation.TreeScope]::Children, $byPid)) {
-            if ($w.Current.Name -eq 'Claude Code Island' -and -not $w.Current.IsOffscreen) { return $w }
+            if ($w.Current.Name -eq 'Agent Islet' -and -not $w.Current.IsOffscreen) { return $w }
         }
         Start-Sleep -Milliseconds 100
     }

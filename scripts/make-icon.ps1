@@ -87,6 +87,7 @@ $pg = [System.Drawing.Graphics]::FromImage($preview)
 $pg.Clear([System.Drawing.Color]::FromArgb(255, 0x20, 0x20, 0x24))
 $pg.FillRectangle((New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(255, 0xF3, 0xF3, 0xF3))), 350, 0, 350, 300)
 $big = Draw-Icon 256
+$big.Save((Join-Path (Split-Path $previewPath) 'icon.png'), [System.Drawing.Imaging.ImageFormat]::Png)
 $pg.DrawImage($big, 20, 22, 256, 256)
 $pg.InterpolationMode = 'NearestNeighbor'
 $pg.PixelOffsetMode = 'Half'

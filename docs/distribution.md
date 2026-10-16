@@ -25,7 +25,7 @@ Decided 2026-10-16: try SignPath. Licence is GPL-3.0 (OSI-approved, as they requ
 - Applying is the owner's act (the "Apply" page on signpath.org), under their own accounts.
 
 ### To do before applying
-1. **Decide the name**, then rename the GitHub repo. It is still `Skepton/win-ai-squared` (the discarded name), owned by `Skepton`; the signing team must own the repo.
+1. ~~Decide the name and rename the repo~~ Done 2026-10-16: **Agent Islet**, repo `Skepton/agent-islet-for-windows`. The signing team must own the repo, so check that the account that owns it is the one that applies.
 2. Make the repo public; add `LICENSE` (done) and a README download page.
 3. Set the product name and version in the App and Hook csproj files (`<Product>`, `<Version>`), matching the project name.
 4. Release workflow (build, checksum, GitHub Release), then the first unsigned release.

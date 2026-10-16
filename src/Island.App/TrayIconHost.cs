@@ -29,7 +29,7 @@ internal sealed class TrayIconHost : IDisposable
         _icon = new NotifyIcon
         {
             Icon = LoadIcon(),
-            Text = "Claude Code Island",
+            Text = "Agent Islet",
             ContextMenuStrip = _menu,
             Visible = true,
         };

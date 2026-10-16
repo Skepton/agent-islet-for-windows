@@ -1,4 +1,6 @@
-# Claude Code Island — Implementation Plan (v2)
+# Agent Islet — Implementation Plan (v2)
+
+> Product renamed from "Claude Code Island" to "Agent Islet" on 2026-10-16. Internal identifiers below (`ClaudeCodeIsland.sln`, `ClaudeCodeIsland.exe`, the pipe name, the data folder) still use the old name until the identifier rename.
 
 A Windows-only, Claude Code-only take on [Open Island](https://github.com/Octane0411/open-vibe-island): a small "island" that drops down from the top-centre of the screen when Claude Code needs you (permission approval, waiting for input) and when usage milestones are reached (e.g. 25% of the 5-hour limit used).
 

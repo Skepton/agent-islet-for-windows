@@ -8,4 +8,12 @@
     <Deterministic>true</Deterministic>
   </PropertyGroup>
 
+  <!-- Shown in the exe's file properties. Code signing (SignPath) requires the product name to match the project name
+       and the version to be the same in every build, so both live here. -->
+  <PropertyGroup>
+    <Product>Agent Islet</Product>
+    <Version>0.1.0</Version>
+    <Copyright>Licensed under the GNU GPL v3.0</Copyright>
+  </PropertyGroup>
+
 </Project>
