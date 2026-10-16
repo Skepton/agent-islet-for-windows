@@ -20,6 +20,13 @@ public interface IAgentIntegration
     /// <param name="requestId">The id to give a permission request started by this payload.</param>
     AgentEvent? Translate(string payloadJson, string requestId);
 
+    /// <summary>
+    /// Turns a hook the agent delivered over HTTP (see <see cref="HookHttpServer"/>) into the frame the hub handles, the
+    /// way the agent's own forwarder would have: which calls wait for an answer, the client app, the project folder.
+    /// Returns null when the call carries nothing the island uses. May throw on malformed input; the call is then dropped.
+    /// </summary>
+    HookFrame? FrameFromHttp(string requestId, HookHttpRequest request, DateTimeOffset now);
+
     /// <summary>What the forwarder prints to the agent's hook stdout for <paramref name="verdict"/>; null prints nothing.</summary>
     string? EncodeVerdict(PermissionVerdict verdict);
 }

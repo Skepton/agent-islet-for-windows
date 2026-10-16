@@ -61,6 +61,29 @@ public sealed class ClaudeCodeAgent : IAgentIntegration
         return evt with { Cwd = hook.Cwd, SessionTitle = hook.SessionTitle, Source = SourceOf(hook) };
     }
 
+    /// <summary>
+    /// A hook delivered over HTTP. The forwarder used to read three things from the hook's environment; the hook's headers
+    /// now carry two of them (<c>X-Entrypoint</c>, <c>X-Claude-Pid</c>). <c>CLAUDE_PROJECT_DIR</c> is not available that
+    /// way, so the project folder comes from the payload's <c>cwd</c> (a subagent's worktree maps back to its project).
+    /// </summary>
+    public HookFrame? FrameFromHttp(string requestId, HookHttpRequest request, DateTimeOffset now)
+    {
+        var hook = HookPayload.Parse(request.Body);
+        if (string.IsNullOrEmpty(hook.EventName)) return null;
+
+        request.Headers.TryGetValue("X-Entrypoint", out var entrypoint);
+        request.Headers.TryGetValue("X-Claude-Pid", out var pidText);
+        return new HookFrame(
+            requestId,
+            AgentId,
+            now.ToUnixTimeMilliseconds(),
+            int.TryParse(pidText, out var pid) ? pid : 0,
+            Wait: hook.EventName == "PermissionRequest",
+            PayloadJson: request.Body,
+            ClientApp: ClientAppNames.FromEntrypoint(entrypoint),
+            Project: ProjectFolder.OfWorktree(hook.Cwd));
+    }
+
     /// <summary>"PostToolUse(Bash)", "Notification(idle_prompt)": event and tool / notification type names only.</summary>
     private static string SourceOf(HookPayload hook)
     {

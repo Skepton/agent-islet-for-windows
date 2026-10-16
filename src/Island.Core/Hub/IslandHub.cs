@@ -71,6 +71,17 @@ public sealed class IslandHub
         return null;
     }
 
+    /// <summary>
+    /// A hook that arrived over HTTP (<see cref="HookHttpServer"/>). The agent turns it into a frame; everything after
+    /// that is the same as for the pipe. Returns the response body for a request that waited for an answer, else null.
+    /// </summary>
+    public async Task<string?> HandleHttpAsync(string agentId, HookHttpRequest request, CancellationToken ct)
+    {
+        if (!_agents.TryGetValue(agentId, out var agent)) return null;
+        var frame = agent.FrameFromHttp(Guid.NewGuid().ToString("N"), request, _clock());
+        return frame is null ? null : await HandleAsync(frame, ct).ConfigureAwait(false);
+    }
+
     /// <summary>Called by the UI when the user acts on a permission card.</summary>
     /// <param name="verdict">The answer, or null for "answer in terminal" (the hook prints nothing).</param>
     public void Answer(string requestId, PermissionVerdict? verdict, PermissionOutcome outcome)

@@ -73,6 +73,17 @@ internal sealed class TestAgent : IAgentIntegration
         };
     }
 
+    /// <summary>A "permission" event waits; headers X-App and X-Project give the client app and project.</summary>
+    public HookFrame? FrameFromHttp(string requestId, HookHttpRequest request, DateTimeOffset now)
+    {
+        using var doc = JsonDocument.Parse(request.Body);
+        var evt = JsonUtil.Str(doc.RootElement, "event");
+        if (evt is null) return null;
+        request.Headers.TryGetValue("X-App", out var app);
+        request.Headers.TryGetValue("X-Project", out var project);
+        return new HookFrame(requestId, AgentId, now.ToUnixTimeMilliseconds(), 0, evt == "permission", request.Body, app, project);
+    }
+
     public string? EncodeVerdict(PermissionVerdict verdict) => verdict switch
     {
         AllowVerdict => "allow",
