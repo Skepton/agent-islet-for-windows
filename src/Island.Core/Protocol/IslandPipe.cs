@@ -16,6 +16,14 @@ public static class IslandPipe
         return string.IsNullOrWhiteSpace(overridden) ? $"agent-islet-{CurrentUserSid()}" : overridden;
     }
 
+    /// <summary>
+    /// The pipe name from before the product was renamed. Hooks installed back then run a forwarder that still connects
+    /// to it, so the app keeps listening there until the user switches to the built-in link. Null when the name is
+    /// overridden (tests, debugging): then there is only the one pipe.
+    /// </summary>
+    public static string? ResolveLegacyName() =>
+        string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable(OverrideEnvVar)) ? $"claude-code-island-{CurrentUserSid()}" : null;
+
     public static string CurrentUserSid()
     {
         using var identity = WindowsIdentity.GetCurrent();

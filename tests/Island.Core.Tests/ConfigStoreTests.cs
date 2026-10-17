@@ -27,13 +27,27 @@ public sealed class ConfigStoreTests : IDisposable
     public void Settings_survive_a_restart()
     {
         var consent = new DateTimeOffset(2026, 10, 16, 9, 30, 0, TimeSpan.FromHours(2));
-        new ConfigStore(ConfigPath).Save(new IslandConfig { UsageEnabled = true, UsageConsentAt = consent, UsageBar = UsageBarMode.OnChange });
+        new ConfigStore(ConfigPath).Save(new IslandConfig
+        {
+            UsageEnabled = true, UsageConsentAt = consent, UsageBar = UsageBarMode.OnChange, HookPort = 47821, HookSecret = "abc_DEF-123",
+        });
 
         var loaded = new ConfigStore(ConfigPath).Load();
 
         Assert.True(loaded.UsageEnabled);
         Assert.Equal(consent, loaded.UsageConsentAt);
         Assert.Equal(UsageBarMode.OnChange, loaded.UsageBar);
+        Assert.Equal(47821, loaded.HookPort);
+        Assert.Equal("abc_DEF-123", loaded.HookSecret);
+    }
+
+    [Fact]
+    public void The_endpoint_settings_default_to_not_chosen_yet()
+    {
+        var config = new ConfigStore(ConfigPath).Load();
+
+        Assert.Equal(0, config.HookPort);
+        Assert.Null(config.HookSecret);
     }
 
     [Theory]

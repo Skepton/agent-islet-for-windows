@@ -19,6 +19,10 @@ public static class SettingsFile
     public static SettingsChange Install(string path, string exePath, bool dryRun, DateTimeOffset now) =>
         Apply(path, text => HookSettings.Install(text, exePath), dryRun, now);
 
+    /// <summary>Registers the island's http hooks pointing at <paramref name="url"/> (replacing older entries of either kind).</summary>
+    public static SettingsChange InstallHttp(string path, string url, bool dryRun, DateTimeOffset now) =>
+        Apply(path, text => HookSettings.InstallHttp(text, url), dryRun, now);
+
     public static SettingsChange Uninstall(string path, bool dryRun, DateTimeOffset now) =>
         Apply(path, HookSettings.Uninstall, dryRun, now);
 

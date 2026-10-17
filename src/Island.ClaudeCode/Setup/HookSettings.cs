@@ -35,6 +35,19 @@ public static class HookSettings
         new("SessionEnd", 2),
     ];
 
+    /// <summary>
+    /// The events for the <c>http</c> hook type: the same list without SessionStart, which Claude Code only lets
+    /// <c>command</c> and <c>mcp_tool</c> hooks handle. (The island makes a session on its first event anyway.)
+    /// </summary>
+    public static IReadOnlyList<HookEvent> HttpEvents { get; } = Events.Where(e => e.Event != "SessionStart").ToList();
+
+    /// <summary>Environment values the island wants, passed as headers (an http hook cannot read the environment itself).</summary>
+    private static readonly (string Header, string Variable)[] EnvHeaders =
+    [
+        ("X-Entrypoint", "CLAUDE_CODE_ENTRYPOINT"),
+        ("X-Claude-Pid", "CLAUDE_PID"),
+    ];
+
     /// <summary>Claude Code runs hooks under Git Bash on Windows: forward slashes, quoted (paths may contain spaces).</summary>
     public static string CommandFor(string exePath) => $"\"{exePath.Replace('\\', '/')}\" hook";
 
@@ -42,6 +55,68 @@ public static class HookSettings
         command is not null
         && command.Contains(ExeName, StringComparison.OrdinalIgnoreCase)
         && command.TrimEnd().EndsWith(" hook", StringComparison.Ordinal);
+
+    /// <summary>A hook URL that points at the island's own local endpoint (any port or token).</summary>
+    public static bool IsIslandUrl(string? url) =>
+        Uri.TryCreate(url, UriKind.Absolute, out var uri)
+        && uri.Scheme == Uri.UriSchemeHttp
+        && uri.Host is "127.0.0.1" or "localhost"
+        && uri.AbsolutePath.StartsWith("/hook/claude-code/", StringComparison.Ordinal);
+
+    /// <summary>One of our hook entries, in either form: the old helper command or the http link.</summary>
+    private static bool IsIslandEntry(JsonObject entry) =>
+        IsIslandCommand(CommandOf(entry)) || (StringOf(entry, "type") == "http" && IsIslandUrl(StringOf(entry, "url")));
+
+    /// <summary>Adds our <c>http</c> entries pointing at <paramref name="url"/>, replacing any earlier ones of either kind.</summary>
+    /// <exception cref="FormatException">The content is not a JSON object, or its hooks section has an unexpected shape.</exception>
+    public static string InstallHttp(string? settingsJson, string url)
+    {
+        var root = Parse(settingsJson);
+        RemoveOurs(root);
+
+        var hooks = root["hooks"] switch
+        {
+            null => new JsonObject(),
+            JsonObject existing => existing,
+            _ => throw new FormatException("\"hooks\" is not an object."),
+        };
+        if (root["hooks"] is null) root["hooks"] = hooks;
+
+        foreach (var (name, timeout, matcher) in HttpEvents)
+        {
+            var groups = hooks[name] switch
+            {
+                null => new JsonArray(),
+                JsonArray existing => existing,
+                _ => throw new FormatException($"\"hooks.{name}\" is not an array."),
+            };
+            if (hooks[name] is null) hooks[name] = groups;
+
+            var headers = new JsonObject();
+            var allowed = new JsonArray();
+            foreach (var (header, variable) in EnvHeaders)
+            {
+                headers[header] = "$" + variable;
+                allowed.Add((JsonNode)JsonValue.Create(variable)!);
+            }
+
+            // JsonNode-typed construction: the generic Add<T> overloads are not trim-safe.
+            var entry = new JsonObject
+            {
+                ["type"] = "http",
+                ["url"] = url,
+                ["timeout"] = timeout,
+                ["headers"] = headers,
+                ["allowedEnvVars"] = allowed,
+            };
+            var group = new JsonObject();
+            if (matcher is not null) group["matcher"] = matcher;
+            group["hooks"] = new JsonArray(entry);
+            groups.Add((JsonNode)group);
+        }
+
+        return Write(root, settingsJson);
+    }
 
     /// <summary>Adds our entries (replacing any earlier ones, so it is safe to run again).</summary>
     /// <param name="settingsJson">Current file content; null or blank for a missing or empty file.</param>
@@ -93,10 +168,19 @@ public static class HookSettings
     /// <summary>True when both texts hold the same JSON (formatting aside).</summary>
     public static bool SameJson(string? a, string? b) => JsonNode.DeepEquals(Parse(a), Parse(b));
 
-    /// <summary>How many of our entries the settings contain.</summary>
-    public static int CountOurs(string? settingsJson)
+    /// <summary>How many of our entries the settings contain, of either kind.</summary>
+    public static int CountOurs(string? settingsJson) => OurEntries(settingsJson).Count();
+
+    /// <summary>How many of our entries still use the old helper program (<c>island-hook.exe hook</c>).</summary>
+    public static int CountHelperEntries(string? settingsJson) => OurEntries(settingsJson).Count(e => IsIslandCommand(CommandOf(e)));
+
+    /// <summary>The URL our http entries call, or null when there are none.</summary>
+    public static string? HttpUrlOf(string? settingsJson) =>
+        OurEntries(settingsJson).Where(e => StringOf(e, "type") == "http").Select(e => StringOf(e, "url")).FirstOrDefault();
+
+    private static IEnumerable<JsonObject> OurEntries(string? settingsJson)
     {
-        if (Parse(settingsJson)["hooks"] is not JsonObject hooks) return 0;
+        if (Parse(settingsJson)["hooks"] is not JsonObject hooks) return Enumerable.Empty<JsonObject>();
         return hooks
             .Select(e => e.Value)
             .OfType<JsonArray>()
@@ -104,7 +188,8 @@ public static class HookSettings
             .Select(group => group["hooks"])
             .OfType<JsonArray>()
             .SelectMany(entries => entries.OfType<JsonObject>())
-            .Count(entry => IsIslandCommand(CommandOf(entry)));
+            .Where(IsIslandEntry)
+            .ToList();
     }
 
     private static JsonObject Parse(string? text)
@@ -135,7 +220,7 @@ public static class HookSettings
             foreach (var group in groups.OfType<JsonObject>().ToList())
             {
                 if (group["hooks"] is not JsonArray entries) continue;
-                var ours = entries.OfType<JsonObject>().Where(e => IsIslandCommand(CommandOf(e))).ToList();
+                var ours = entries.OfType<JsonObject>().Where(IsIslandEntry).ToList();
                 if (ours.Count == 0) continue;
 
                 foreach (var entry in ours) entries.Remove(entry);
@@ -149,8 +234,10 @@ public static class HookSettings
         if (hooks.Count == 0 && eventsBefore > 0) root.Remove("hooks");
     }
 
-    private static string? CommandOf(JsonObject entry) =>
-        entry["command"] is JsonValue value && value.TryGetValue<string>(out var command) ? command : null;
+    private static string? CommandOf(JsonObject entry) => StringOf(entry, "command");
+
+    private static string? StringOf(JsonObject entry, string name) =>
+        entry[name] is JsonValue value && value.TryGetValue<string>(out var text) ? text : null;
 
     /// <summary>Two-space indented JSON, keeping the original's line endings (LF for a new file) and a final newline.</summary>
     private static string Write(JsonObject root, string? original)

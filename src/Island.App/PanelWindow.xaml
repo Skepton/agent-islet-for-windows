@@ -254,7 +254,7 @@
                           Visibility="{Binding DataContext.IsSetup, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVisibility}}">
                 <StackPanel>
                     <TextBlock Style="{StaticResource SecondaryText}" TextWrapping="Wrap" TextTrimming="None" Margin="0,0,0,14"
-                               Text="Agent Islet hears about Claude Code through small hooks that live in Claude Code's own settings file. Connecting adds them, disconnecting removes them. Your settings file is backed up first, and only the island's own entries are ever touched." />
+                               Text="Agent Islet hears about Claude Code through small hooks in Claude Code's own settings file. Each one just sends the event to this app on your own computer: nothing is installed or copied. Connecting adds them, disconnecting removes them. Your settings file is backed up first, and only the island's own entries are ever touched." />
 
                     <Border Style="{StaticResource PanelCard}">
                         <StackPanel>
@@ -268,7 +268,7 @@
                                     </Button.Style>
                                 </Button>
                                 <Button Content="Disconnect" Command="{Binding Disconnect}" Style="{StaticResource IslandButton}" Height="30"
-                                        Padding="14,0" IsEnabled="{Binding IsConnected}" />
+                                        Padding="14,0" IsEnabled="{Binding CanDisconnect}" />
                             </StackPanel>
                             <TextBlock Text="{Binding ResultText}" Style="{StaticResource SecondaryText}" TextWrapping="Wrap" TextTrimming="None" Margin="0,12,0,0" />
                         </StackPanel>

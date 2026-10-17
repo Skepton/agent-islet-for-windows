@@ -31,10 +31,16 @@ public sealed class SetupViewModel : ObservableObject
 
     public string StatusText => _status.Text;
 
-    public bool IsConnected => _status.State == SetupState.Connected;
+    /// <summary>There are island hooks in Claude Code's settings (of either kind), so there is something to remove.</summary>
+    public bool CanDisconnect => _status.State is SetupState.Connected or SetupState.ViaHelper;
 
     /// <summary>Connecting again is harmless (it repairs and updates), so the button stays available.</summary>
-    public string ConnectLabel => IsConnected ? "Repair connection" : "Connect Claude Code";
+    public string ConnectLabel => _status.State switch
+    {
+        SetupState.Connected => "Repair connection",
+        SetupState.ViaHelper => "Switch to the built-in link",
+        _ => "Connect Claude Code",
+    };
 
     public string ResultText
     {
@@ -42,13 +48,14 @@ public sealed class SetupViewModel : ObservableObject
         private set => Set(ref _resultText, value);
     }
 
-    public bool NeedsSetup => _status.State != SetupState.Connected;
+    /// <summary>Nothing is connected yet (an older helper connection still works, so it does not count).</summary>
+    public bool NeedsSetup => _status.State is SetupState.NotConnected or SetupState.Unreadable;
 
     public void Refresh()
     {
         _status = _setup.Status();
         Raise(nameof(StatusText));
-        Raise(nameof(IsConnected));
+        Raise(nameof(CanDisconnect));
         Raise(nameof(ConnectLabel));
         Raise(nameof(NeedsSetup));
     }

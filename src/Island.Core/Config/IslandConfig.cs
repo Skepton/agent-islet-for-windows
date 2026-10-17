@@ -22,6 +22,15 @@ public sealed record IslandConfig
     public bool UsageEnabled { get; init; }
     public DateTimeOffset? UsageConsentAt { get; init; }
     public UsageBarMode UsageBar { get; init; } = UsageBarMode.ThinBar;
+
+    /// <summary>Port of the local endpoint agents' hooks call. 0 until the first start picks one.</summary>
+    public int HookPort { get; init; }
+
+    /// <summary>
+    /// The random key in the endpoint's address, so only programs that were given it (the hooks in the agent's settings)
+    /// can talk to the app. Local to this machine; not a login of any kind. Null until the first start makes it.
+    /// </summary>
+    public string? HookSecret { get; init; }
 }
 
 /// <summary>Reads and writes <c>config.json</c>. Loading is forgiving (missing or damaged file means defaults); saving is atomic.</summary>
@@ -51,6 +60,8 @@ public sealed class ConfigStore
                 UsageEnabled = JsonUtil.Bool(root, "usageEnabled"),
                 UsageConsentAt = consentAt,
                 UsageBar = JsonUtil.Str(root, "usageBar") == "onChange" ? UsageBarMode.OnChange : UsageBarMode.ThinBar,
+                HookPort = JsonUtil.Int32(root, "hookPort"),
+                HookSecret = JsonUtil.Str(root, "hookSecret") is { Length: > 0 } secret ? secret : null,
             };
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
@@ -69,6 +80,8 @@ public sealed class ConfigStore
             w.WriteBoolean("usageEnabled", config.UsageEnabled);
             if (config.UsageConsentAt is { } at) w.WriteString("usageConsentAt", at.ToString("O", CultureInfo.InvariantCulture));
             w.WriteString("usageBar", config.UsageBar == UsageBarMode.OnChange ? "onChange" : "thinBar");
+            if (config.HookPort > 0) w.WriteNumber("hookPort", config.HookPort);
+            if (config.HookSecret is { Length: > 0 } secret) w.WriteString("hookSecret", secret);
             w.WriteEndObject();
         }
 
