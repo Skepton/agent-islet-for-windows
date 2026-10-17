@@ -11,6 +11,34 @@ Inspired by [Open Island](https://github.com/Octane0411/open-vibe-island) for ma
 
 > Agent Islet is an independent project. It is not affiliated with, endorsed by or sponsored by Anthropic or by the Open Island project. "Claude" and "Claude Code" are trademarks of Anthropic, PBC, used here only to say what the app works with.
 
+## What it looks like
+
+<p>
+  <img src="docs/images/permission-card.png" alt="A permission request: No, Yes or Always Allow" width="430">
+  <img src="docs/images/several-sessions.png" alt="Several waiting sessions, paged with 1 of 3" width="430">
+</p>
+
+When nothing needs you, a thin bar at the top shows your usage. Rest the pointer on it (or wait until the numbers change) and it opens:
+
+<p>
+  <img src="docs/images/usage-bar.png" alt="The thin usage bar: 5-hour and 7-day gauges" width="300">
+  &nbsp;&nbsp;
+  <img src="docs/images/usage-strip.png" alt="The usage strip, opened: percentages and time until reset" width="430">
+</p>
+
+<p>
+  <img src="docs/images/question-card.png" alt="Claude asks a question" width="300">
+  <img src="docs/images/finished-card.png" alt="A finished turn with its summary" width="300">
+  <img src="docs/images/new-project-card.png" alt="A new project asks whether to show it" width="300">
+</p>
+
+<p>
+  <img src="docs/images/usage-milestone-card.png" alt="A usage milestone: 35 percent of the 5-hour limit" width="300">
+  <img src="docs/images/usage-limit-card.png" alt="A high-usage warning in red" width="300">
+</p>
+
+These are drawn by the app itself from demo data (`scripts\make-screenshots.ps1`), so they always match the real look.
+
 ## What it shows
 
 - **Permission requests.** "Claude wants to run Bash: `npm test`". Answer **No**, **Yes** or **Always Allow** from the island, or leave it and answer in your terminal or VS Code as usual.
@@ -25,15 +53,23 @@ The island never takes keyboard focus, so it won't interrupt what you're typing.
 
 ## Status
 
-Early and in active development. The island, the hook forwarder, the installer and usage tracking work and are tested. There is no packaged release yet: you build it from source. Claude Code is the only supported agent for now. The code keeps everything Claude Code-specific in one library, so other agents can be added later.
+Early and in active development. The island, the built-in connection to Claude Code, the control panel and usage tracking work and are tested. There is no packaged release yet: you build it from source. Claude Code is the only supported agent for now. The code keeps everything Claude Code-specific in one library, so other agents can be added later.
 
-## Use it every day
+## Connect Claude Code
+
+1. Start Agent Islet. It sits in the tray.
+2. Click the tray icon, open the **Claude Code** tab and press **Connect Claude Code**. It tells you what it is about to change, saves a backup of Claude Code's settings file, and adds a few hooks that send Claude Code's events to the app on your own computer (a local address with a secret key). Nothing is installed or copied, and the app can live anywhere.
+3. **Disconnect** on the same tab removes the hooks again. Running Claude Code sessions pick changes up on their next event.
+
+If Agent Islet is not running, Claude Code behaves exactly as it would without it.
+
+## For development: the install script
 
 ```powershell
 powershell -File scripts\install-local.ps1               # usage tracking is switched on in the panel's Usage tab
 ```
 
-This builds the island into `%LOCALAPPDATA%\AgentIslet`, adds its hooks to Claude Code's user settings (`~/.claude/settings.json`, backed up first, nothing else touched) and starts it in the tray. Already-running Claude Code sessions pick it up on their next event.
+This builds the island into `%LOCALAPPDATA%\AgentIslet`, connects Claude Code through the older helper program (`island-hook.exe`; the panel's "Switch to the built-in link" replaces that with the web hooks above) and starts it in the tray.
 
 **You choose which projects show up.** The first time a session from a new folder reaches the island, it asks: *New project: my-app — Ignore / Show*. Until you answer, that project is left alone. Change your mind any time in the control panel's **Projects** tab (click the tray icon), where every project is listed with **Show**, **Ignore** and **Forget**.
 
@@ -66,30 +102,30 @@ powershell -File scripts\publish-hook.ps1                # terminal 2: build the
 
 Click a button on the island and the forwarder prints exactly what Claude Code would receive.
 
-App flags: `--demo` (fake cards), `--tray` (start hidden in the tray), `--poll-usage` (turn on usage tracking and remember it in `config.json`, as the Usage tab's switch does), `--allow-all-projects` (skip the per-project question; for testing).
+App flags: `--shots <folder>` (draw every view to PNG files and exit; used by `scripts\make-screenshots.ps1`), `--demo` (fake cards), `--tray` (start hidden in the tray), `--poll-usage` (turn on usage tracking and remember it in `config.json`, as the Usage tab's switch does), `--allow-all-projects` (skip the per-project question; for testing).
 
 ## How it works
 
 ```
-Claude Code ──hook──▶ island-hook.exe ──local named pipe──▶ island app (overlay + tray)
-            ◀──decision (permission requests only)──┘
+Claude Code ──http hook──▶ local address (127.0.0.1, secret key) ──▶ island app (overlay + tray)
+            ◀──decision (permission requests only)──────────────────┘
 ```
 
-Claude Code runs a hook (a command you register in its settings) on events like "permission requested" or "turn finished". The hook is a tiny forwarder that passes the event to the island over a pipe only your Windows user can open. For a permission request it waits for your answer and hands it back to Claude Code. You can still answer in the terminal at any time, and the card disappears.
+Claude Code calls a hook (an entry in its settings) on events like "permission requested" or "turn finished". The hook is a plain web request to the island app on your own computer, so there is no helper program to install. For a permission request the request stays open until you answer, and the answer goes back as the response. You can still answer in the terminal at any time, and the card disappears. (The older way, a small helper program talking over a named pipe, still works and is what `scripts\install-local.ps1` sets up.)
 
 ## Privacy and safety
 
-- **Fail-open.** If the island isn't running, crashes or doesn't answer, the hook prints nothing and Claude Code behaves exactly as it would without it.
-- **Local only.** Events travel over a named pipe restricted to your user. Prompts and commands are shown on cards and kept in memory only. Nothing from your sessions is written to disk except the folder paths of projects you chose to show or ignore.
+- **Fail-open.** If the island isn't running, crashes or doesn't answer, Claude Code gets no decision from it and behaves exactly as it would without it.
+- **Local only.** The app listens on the loopback address only (not your network). Its address contains a random secret key kept in `config.json`, and requests without it, or with a foreign `Host` header, are refused, so a web page or another program cannot send fake approvals. (The older pipe is restricted to your Windows user.) Prompts and commands are shown on cards and kept in memory only. Nothing from your sessions is written to disk except the folder paths of projects you chose to show or ignore.
 - **Usage tracking is opt-in** (the switch in the panel's Usage tab, off by default; `config.json` in the data folder records it and when you agreed). It reads Claude Code's own sign-in token (read-only: never stored, logged or refreshed) and calls the same usage endpoint Claude Code's `/status` uses, on `api.anthropic.com` only. That endpoint is unofficial and may change.
-- The installer backs up your Claude Code settings, touches only its own entries, and uninstalls cleanly. Try it on a copy first with `island-hook.exe install --settings <copy> --dry-run`.
+- Connect backs up your Claude Code settings first, touches only its own entries, and Disconnect removes them cleanly. It asks before it changes anything.
 
 ## Project layout
 
 ```
-src/Island.Core        agent-neutral core: sessions, card queue, pipe protocol, usage milestones
-src/Island.ClaudeCode  everything Claude Code-specific (hook payloads, decisions, usage endpoint)
-src/Island.Hook        island-hook.exe, the forwarder Claude Code runs
+src/Island.Core        agent-neutral core: sessions, card queue, local web endpoint and pipe, usage milestones
+src/Island.ClaudeCode  everything Claude Code-specific (hook payloads, decisions, Connect, usage endpoint)
+src/Island.Hook        island-hook.exe, the older forwarder (still works; not needed with the built-in link)
 src/Island.App         the WPF island, tray icon and debug window
 tests/                 xUnit tests against real, sanitised Claude Code payloads
 ```

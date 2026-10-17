@@ -44,22 +44,22 @@ public sealed class DemoDriver
         _next = (_next + 1) % _scenes.Length;
     }
 
-    private void Permission() => _overlay.OnEffects(new StoreEffect[] { PermissionEffect("demo-1", "s1", "my-project", "fix the failing tests") });
+    internal void Permission() => _overlay.OnEffects(new StoreEffect[] { PermissionEffect("demo-1", "s1", "my-project", "fix the failing tests") });
 
-    private void NeedsInput() => _overlay.OnEffects(new StoreEffect[]
+    internal void NeedsInput() => _overlay.OnEffects(new StoreEffect[]
     {
         new NoticeShown("s1", "my-project", SessionPhase.NeedsInput, "Claude needs your input: which database should the migration target?",
             "add a migration for the new table", "VS Code", Agent),
     });
 
-    private void Finished() => _overlay.OnEffects(new StoreEffect[]
+    internal void Finished() => _overlay.OnEffects(new StoreEffect[]
     {
         new NoticeShown("s1", "my-project", SessionPhase.Finished,
             "I fixed the three failing tests in the parser module.\n\n- The date parser no longer drops the time zone.\n- Empty input now returns an empty list instead of throwing.\n- Added a regression test for each case.\n\nAll 214 tests pass.",
             "fix the failing tests", "VS Code", Agent),
     });
 
-    private void NewProject() => _overlay.OnEffects(new StoreEffect[]
+    internal void NewProject() => _overlay.OnEffects(new StoreEffect[]
     {
         new ProjectApprovalRequested(new ProjectRef(OverlayController.DemoPrefix + "website", @"C:\Users\you\Projects\website", "website"), Agent),
     });
@@ -70,11 +70,11 @@ public sealed class DemoDriver
     /// <summary>A reading that moved one percent (no milestone): the numbers drop down for a few seconds, then the bar remains.</summary>
     private void UsageCreep() => _overlay.OnUsage(UsageUpdateFor(fiveHour: 29, sevenDay: 55));
 
-    private void Milestone35() => _overlay.OnUsage(UsageUpdateFor(fiveHour: 36, sevenDay: 55, new MilestoneEvent(UsageWindowId.FiveHour, 35, 36, Resets(3))));
+    internal void Milestone35() => _overlay.OnUsage(UsageUpdateFor(fiveHour: 36, sevenDay: 55, new MilestoneEvent(UsageWindowId.FiveHour, 35, 36, Resets(3))));
 
-    private void Milestone90() => _overlay.OnUsage(UsageUpdateFor(fiveHour: 92, sevenDay: 55, new MilestoneEvent(UsageWindowId.FiveHour, 90, 92, Resets(1))));
+    internal void Milestone90() => _overlay.OnUsage(UsageUpdateFor(fiveHour: 92, sevenDay: 55, new MilestoneEvent(UsageWindowId.FiveHour, 90, 92, Resets(1))));
 
-    private void ThreeSessions()
+    internal void ThreeSessions()
     {
         _overlay.OnEffects(new StoreEffect[]
         {
@@ -99,7 +99,7 @@ public sealed class DemoDriver
 
     private static DateTimeOffset Resets(int hours) => DateTimeOffset.UtcNow.AddHours(hours).AddMinutes(10);
 
-    private static UsageUpdate UsageUpdateFor(double fiveHour, double sevenDay, params MilestoneEvent[] milestones)
+    internal static UsageUpdate UsageUpdateFor(double fiveHour, double sevenDay, params MilestoneEvent[] milestones)
     {
         var snapshot = new UsageSnapshot(DateTimeOffset.UtcNow, new[]
         {

@@ -3,11 +3,12 @@
 Goal: someone non-technical downloads one file from GitHub, double-clicks it, and it works. No installer. Updates come from GitHub Releases.
 
 ## The release
-- **One portable exe**, self-contained single file (`win-x64`, compressed): about 72 MB measured on 2026-10-16 (WPF cannot be trimmed). The 17 MB forwarder `island-hook.exe` is embedded in it and copied to `%LOCALAPPDATA%` on first run, so the hooks survive moving the exe.
-  - The forwarder stays a separate exe: it runs on every Claude Code event and has to start fast (45 ms median), which a WPF exe cannot.
-- **First run** offers a "Set up Claude Code" button. It edits `~/.claude/settings.json` through the existing installer (backup, only our entries). The app must say what it will change before it does (SignPath rule), and has an "Remove hooks" action (uninstall rule).
+- **One portable exe, nothing else**: self-contained single file (`win-x64`), about 72 MB compressed (measured 2026-10-16; WPF cannot be trimmed). No helper program and no copying: Claude Code's `http` hook type calls the app's local endpoint directly (docs/findings.md H1-H8), so the app can run from anywhere, including Downloads.
+- **Connect** (the panel's Claude Code tab, built) edits `~/.claude/settings.json`: it asks first, backs the file up, adds only our entries, and **Disconnect** removes them (SignPath's "warn before changing system configuration" and "uninstall" rules). The panel opens on that tab until Claude Code is connected.
+- The old helper `island-hook.exe` and the named pipe still work (the app listens on both the current and the pre-rename pipe name), for existing installs and `scripts\install-local.ps1`. Remove them from the release path; keep the project for development until nothing needs it.
 - **Never commit binaries.** A GitHub Actions workflow builds on a version tag, signs, and attaches the exe plus a SHA-256 checksum to a GitHub Release.
 - The framework-dependent build `install-local.ps1` makes (441 KB, needs the .NET 8 desktop runtime) stays for development only.
+- **Known limits of the web hooks:** SessionStart is not supported by Claude Code's `http` hooks (not needed); `CLAUDE_PROJECT_DIR` is not available, so a subagent's project is derived from its worktree path (`ProjectFolder.OfWorktree`, to be checked against a real subagent payload); a managed policy that restricts hook URLs would block them; the port may be taken (the app then picks a free one and Connect has to be repeated).
 
 ## Updates
 Opt-in check against `GET /repos/<owner>/<repo>/releases/latest` (no user data sent). When newer: "Update available" in the panel and tray; download the exe, verify the SHA-256 from the release, rename the running exe aside, put the new one in place, restart. Alternative: Velopack (less code, but it installs into AppData).
@@ -29,7 +30,7 @@ Decided 2026-10-16: try SignPath. Licence is GPL-3.0 (OSI-approved, as they requ
 2. Make the repo public; add `LICENSE` (done) and a README download page.
 3. Set the product name and version in the App and Hook csproj files (`<Product>`, `<Version>`), matching the project name.
 4. Release workflow (build, checksum, GitHub Release), then the first unsigned release.
-5. First-run setup button, "Remove hooks" action, update check.
+5. ~~First-run setup and "Remove hooks"~~ Done (Claude Code tab). Still to do: the update check.
 6. Apply; once accepted, add the signing step (`signpath/github-action-submit-signing-request`) and the code signing policy section.
 
 ### Unverified

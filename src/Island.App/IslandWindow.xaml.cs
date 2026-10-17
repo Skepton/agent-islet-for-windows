@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
+using System.Windows.Media.Imaging;
 using Island.Core;
 
 namespace Island.App;
@@ -65,10 +66,22 @@ public partial class IslandWindow : Window
         return (new PixelRect(r.Left, r.Top, r.Right, r.Bottom), dpi / 96.0);
     }
 
+    /// <summary>
+    /// Keeps the window far off every screen (for <c>--shots</c>), so it can be laid out and drawn into a picture without
+    /// ever showing over the user's own windows or their real island.
+    /// </summary>
+    public bool Offscreen { get; set; }
+
     /// <summary>Top-centre of the work area of the monitor that holds the foreground window.</summary>
     public void PlaceAtTop()
     {
         if (_hwnd == IntPtr.Zero) return;
+        if (Offscreen)
+        {
+            Width = DesignWidth;
+            NativeMethods.SetWindowPos(_hwnd, NativeMethods.HWND_TOPMOST, -20000, 0, 0, 0, NativeMethods.SWP_NOSIZE | NativeMethods.SWP_NOACTIVATE);
+            return;
+        }
 
         var monitor = NativeMethods.MonitorFromWindow(NativeMethods.GetForegroundWindow(), NativeMethods.MONITOR_DEFAULTTONEAREST);
         var info = new NativeMethods.MONITORINFO { cbSize = System.Runtime.InteropServices.Marshal.SizeOf<NativeMethods.MONITORINFO>() };
@@ -86,6 +99,40 @@ public partial class IslandWindow : Window
         var x = work.Left + ((work.Right - work.Left) - widthPx) / 2;
         NativeMethods.SetWindowPos(_hwnd, NativeMethods.HWND_TOPMOST, x, work.Top, 0, 0,
             NativeMethods.SWP_NOSIZE | NativeMethods.SWP_NOACTIVATE);
+    }
+
+    /// <summary>
+    /// Draws whatever the island shows right now (the thin bar, the usage strip, the pill or a card) into a PNG, at
+    /// <paramref name="scale"/> times the normal size, on a plain <paramref name="backdrop"/> with a little margin.
+    /// Nothing on screen is captured, so nothing of the user's desktop can end up in it.
+    /// </summary>
+    public void SavePng(string path, Color backdrop, double scale = 2)
+    {
+        // Skip the slide-in animation: draw the finished state.
+        Root.BeginAnimation(OpacityProperty, null);
+        Root.Opacity = 1;
+        Slide.BeginAnimation(TranslateTransform.YProperty, null);
+        Slide.Y = 0;
+        UpdateLayout();
+
+        FrameworkElement target = Hairline.IsVisible ? Hairline : Panel.IsVisible ? Panel : Pill;
+        const double pad = 18;
+        var width = target.ActualWidth + 2 * pad;
+        var height = target.ActualHeight + pad; // the island hangs from the top edge: margin at the sides and bottom only
+
+        var visual = new DrawingVisual();
+        using (var dc = visual.RenderOpen())
+        {
+            dc.DrawRectangle(new SolidColorBrush(backdrop), null, new Rect(0, 0, width, height));
+            dc.DrawRectangle(new VisualBrush(target) { Stretch = Stretch.None }, null, new Rect(pad, 0, target.ActualWidth, target.ActualHeight));
+        }
+
+        var bitmap = new RenderTargetBitmap((int)Math.Ceiling(width * scale), (int)Math.Ceiling(height * scale), 96 * scale, 96 * scale, PixelFormats.Pbgra32);
+        bitmap.Render(visual);
+        var encoder = new PngBitmapEncoder();
+        encoder.Frames.Add(BitmapFrame.Create(bitmap));
+        using var file = System.IO.File.Create(path);
+        encoder.Save(file);
     }
 
     /// <summary>Drops the island down from the top edge. Does nothing when it is already showing.</summary>

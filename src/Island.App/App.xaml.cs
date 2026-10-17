@@ -151,6 +151,22 @@ public partial class App : Application
         _pruneTimer.Tick += (_, _) => hub.Prune();
         _pruneTimer.Start();
 
+        var shotsAt = Array.IndexOf(e.Args, "--shots");
+        if (shotsAt >= 0 && shotsAt + 1 < e.Args.Length)
+        {
+            // Draw every island view to PNG files, then quit. Nothing is shown on screen.
+            _overlay.Offscreen = true;
+            _overlay.Start();
+            _ = new ShotsDriver(_overlay, new DemoDriver(_overlay), e.Args[shotsAt + 1]).RunAsync().ContinueWith(
+                task => Dispatcher.InvokeAsync(() =>
+                {
+                    if (task.IsFaulted) MessageBox.Show(task.Exception?.GetBaseException().Message, "Agent Islet", MessageBoxButton.OK, MessageBoxImage.Error);
+                    Quit();
+                }),
+                TaskScheduler.Default);
+            return;
+        }
+
         _overlay.Start();
         if (e.Args.Contains("--demo"))
         {

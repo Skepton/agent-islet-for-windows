@@ -74,6 +74,16 @@ public sealed class OverlayController : IDisposable
         Refresh();
     }
 
+    /// <summary>Keep the island off every screen (for <c>--shots</c>).</summary>
+    public bool Offscreen
+    {
+        get => _window.Offscreen;
+        set => _window.Offscreen = value;
+    }
+
+    /// <summary>Draws the island as it is now into a PNG file (see <see cref="IslandWindow.SavePng"/>).</summary>
+    public void Capture(string path, System.Windows.Media.Color backdrop) => _window.SavePng(path, backdrop);
+
     /// <summary>How the usage numbers show when no card needs the user.</summary>
     public void SetUsageBar(UsageBarMode mode)
     {
